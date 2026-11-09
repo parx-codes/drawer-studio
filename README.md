@@ -55,3 +55,7 @@ L’SQL generato è un punto di partenza per lo schema relazionale. Rivedi tipi,
 ## Segnalazioni e contributi
 
 Per segnalare un problema, apri una **Issue** e indica versione, sistema operativo, passaggi per riprodurlo e risultato atteso. Se serve un file di esempio, allega un diagramma privo di dati riservati. Le proposte e le pull request sono benvenute.
+
+## Licenza
+
+DrawER Studio è distribuito con licenza [MIT](LICENSE).
