@@ -1,5 +1,15 @@
 # Novità di DrawER Studio
 
+## 1.0.4
+
+- Il sinistro seleziona un oggetto o un’area. Il destro sposta la vista.
+  Maiusc+sinistro sposta le figure.
+- Gli attributi si attaccano liberamente sul contorno del proprietario.
+  Le cardinalità facoltative appaiono sull’arco e si salvano nel progetto.
+- Gli attributi ripetibili delle entità diventano tabelle separate nell’SQL.
+- Nuove maniglie sui tratti. Le proprietà del collegamento permettono di
+  scegliere i lati di attacco e di ripristinare il percorso automatico.
+
 ## 1.0.3
 
 - Il titolo predefinito si aggiorna al nome del file quando salvi un progetto.

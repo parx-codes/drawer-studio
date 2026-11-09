@@ -136,6 +136,13 @@ def generate_sql(doc: Document, dialect: str = "sqlite") -> str:
         notes.insert(0, "IMPORTAZIONE WEB: tipi/cardinalità non presenti nel file originale, "
                         "valori iniziali da revisionare (VARCHAR(255) e partecipazione (0,N)).")
 
+    for node in doc.nodes:
+        if node.kind == "attribute" and node.attribute_card and not node.derived:
+            if node.is_pk and node.attribute_card != "1,1":
+                raise SqlExportError(f"'{node.name}': una chiave richiede cardinalità (1,1).")
+            if node.attribute_card.endswith("N") and by_id[node.parent_id].kind != "entity":
+                raise SqlExportError(f"'{node.name}': esportazione di attributi ripetibili supportata per le entità.")
+
     def check_name(name: str) -> str:
         clean = name.strip()
         if not clean or "\x00" in clean:
@@ -155,8 +162,9 @@ def generate_sql(doc: Document, dialect: str = "sqlite") -> str:
         return result
 
     def attribute_column(attr: Node, name: str | None = None, nullable: bool | None = None) -> _Column:
+        optional = attr.attribute_card.startswith("0") if attr.attribute_card else attr.nullable
         return _Column(check_name(name if name is not None else attr.name), normalize_type(attr.data_type, dialect),
-                       (attr.nullable and not attr.is_pk) if nullable is None else nullable,
+                       (optional and not attr.is_pk) if nullable is None else nullable,
                        attr.unique)
 
     # TPT: each subtype inherits exactly the supertype key. Multiple inheritance
@@ -187,13 +195,14 @@ def generate_sql(doc: Document, dialect: str = "sqlite") -> str:
         supertable = build_entity(by_id[supertypes[entity.id]]) if entity.id in supertypes else None
         result = table(entity.name)
         entity_tables[entity.id] = result
-        simple = [attr for attr in doc.attributes(entity.id) if attr.kind == "attribute" and not attr.derived]
+        simple = [attr for attr in doc.attributes(entity.id) if attr.kind == "attribute" and not attr.derived
+                  and attr.attribute_card not in ("0,N", "1,N")]
         own_keys = [attr for attr in simple if attr.is_pk]
         if supertable:
             inherited_names = {name.casefold() for name in supertable.pk}
             shadowed = [attr for attr in doc.attributes(entity.id)
                         if attr.name.strip().casefold() in inherited_names
-                        and (attr.derived or attr.kind == "multivalue")]
+                        and (attr.derived or attr.kind == "multivalue" or attr.attribute_card in ("0,N", "1,N"))]
             if shadowed:
                 raise SqlExportError(f"'{entity.name}.{shadowed[0].name}': un attributo derivato o multivalore "
                                      "non può sostituire un membro della chiave primaria ereditata.")
@@ -291,9 +300,9 @@ def generate_sql(doc: Document, dialect: str = "sqlite") -> str:
             relation_columns = []
             for attr in attrs:
                 name = check_name(f"{relation.name}_{attr.name.strip()}")
-                host.add(attribute_column(attr, name, nullable=True if optional else attr.nullable))
+                host.add(attribute_column(attr, name, nullable=True if optional else None))
                 relation_columns.append(name)
-                if optional and not attr.nullable:
+                if optional and not attribute_column(attr).nullable:
                     host.constraints.append(f"CHECK ({quote(fk_columns[0])} IS NULL OR {quote(name)} IS NOT NULL)")
             if optional and relation_columns:
                 absent = " AND ".join(f"{quote(name)} IS NULL" for name in relation_columns)
@@ -313,7 +322,8 @@ def generate_sql(doc: Document, dialect: str = "sqlite") -> str:
 
     # Each simple multivalued attribute gets its own table. The value and owner
     # key form a composite PK: a set (duplicates are deliberately disallowed).
-    for attr in [n for n in doc.nodes if n.kind == "multivalue" and not n.derived]:
+    for attr in [n for n in doc.nodes if (n.kind == "multivalue" or n.attribute_card in ("0,N", "1,N"))
+                 and not n.derived]:
         if attr.parent_id not in entity_tables:
             raise SqlExportError(f"'{attr.name}': definire un'entità proprietaria per il multivalore.")
         owner = entity_tables[attr.parent_id]
@@ -346,6 +356,9 @@ def generate_sql(doc: Document, dialect: str = "sqlite") -> str:
         value_column = attribute_column(attr, attr.name.strip(), nullable=False)
         result.add(value_column)
         result.pk.append(value_column.name)
+        if attr.attribute_card == "1,N":
+            notes.append(f"MINIMO NON IMPOSTO: {_comment(owner.name)}.{_comment(attr.name)} (1,N) "
+                         "richiede almeno un valore per proprietario, da verificare con trigger o applicazione.")
         notes.append(f"Multivalore {_comment(owner.name)}.{_comment(attr.name)} → tabella {_comment(result.name)}; "
                      "insieme di valori distinti, nessuna riga rappresenta l'insieme vuoto.")
 

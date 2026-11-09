@@ -23,7 +23,7 @@ def main():
                 archive.write(path,Path('DrawER-Studio')/relative)
     bundle=root/'dist'/APP_NAME
     if bundle.is_dir():
-        for name in ('README.md','ARCHITETTURA.md','ANALISI_ORIGINALE.md','THIRD_PARTY_NOTICES.md','VERIFICA.md','CHANGELOG.md','ROADMAP_v1.1.md'):
+        for name in ('LICENSE','README.md','ARCHITETTURA.md','ANALISI_ORIGINALE.md','THIRD_PARTY_NOTICES.md','VERIFICA.md','CHANGELOG.md','ROADMAP_v1.1.md'):
             path=root/name
             if path.exists():shutil.copy2(path,bundle/name)
         target=release/f'DrawER-Studio-v{__version__}-{platform.system()}-{platform.machine()}.zip'

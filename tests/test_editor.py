@@ -118,10 +118,10 @@ def test_actual_mouse_drag_updates_document_and_history(window, app):
     start = window.view.mapFromScene(item.sceneBoundingRect().center())
     end = start + window.view.mapFromScene(QPointF(80, 40)) - window.view.mapFromScene(QPointF(0, 0))
     viewport = window.view.viewport()
-    QTest.mouseClick(viewport, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, start)
-    QTest.mousePress(viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start)
+    QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start)
+    QTest.mousePress(viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier, start)
     QTest.mouseMove(viewport, end, delay=15)
-    QTest.mouseRelease(viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, end)
+    QTest.mouseRelease(viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier, end)
     app.processEvents()
     assert QPointF(parent.x, parent.y) != initial
     assert window.history.can_undo

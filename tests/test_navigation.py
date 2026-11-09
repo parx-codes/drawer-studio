@@ -55,11 +55,11 @@ def drag(editor, button, start, end, modifiers=Qt.NoModifier):
     QApplication.processEvents()
 
 
-def test_left_drag_pans_without_selecting_or_changing_document(editor):
+def test_right_drag_pans_without_selecting_or_changing_document(editor):
     original = editor.document.to_dict()
     start = QPoint(25, 25)
     before = (editor.view.horizontalScrollBar().value(), editor.view.verticalScrollBar().value())
-    drag(editor, Qt.LeftButton, start, start + QPoint(75, 45))
+    drag(editor, Qt.RightButton, start, start + QPoint(75, 45))
     after = (editor.view.horizontalScrollBar().value(), editor.view.verticalScrollBar().value())
     assert after != before
     assert editor.document.to_dict() == original
@@ -68,30 +68,30 @@ def test_left_drag_pans_without_selecting_or_changing_document(editor):
     assert not editor.view._panning
 
 
-def test_right_click_selects_and_control_toggles_without_opening_menu(editor, monkeypatch):
+def test_left_click_selects_and_control_toggles_without_opening_menu(editor, monkeypatch):
     def unexpected_menu(*args):
-        pytest.fail('Il semplice clic destro non deve aprire un menu.')
+        pytest.fail('Il semplice clic sinistro non deve aprire un menu.')
     monkeypatch.setattr(editor.scene, 'show_context_menu', unexpected_menu)
     viewport = editor.view.viewport()
     first, other = editor.document.nodes[0], editor.document.nodes[2]
-    QTest.mouseClick(viewport, Qt.RightButton, Qt.NoModifier, point(editor, 0))
+    QTest.mouseClick(viewport, Qt.LeftButton, Qt.NoModifier, point(editor, 0))
     assert editor.scene.selected_ids() == [first.id]
-    QTest.mouseClick(viewport, Qt.RightButton, Qt.ControlModifier, point(editor, 2))
+    QTest.mouseClick(viewport, Qt.LeftButton, Qt.ControlModifier, point(editor, 2))
     assert set(editor.scene.selected_ids()) == {first.id, other.id}
-    QTest.mouseClick(viewport, Qt.RightButton, Qt.ControlModifier, point(editor, 0))
+    QTest.mouseClick(viewport, Qt.LeftButton, Qt.ControlModifier, point(editor, 0))
     assert editor.scene.selected_ids() == [other.id]
     assert not editor.dirty
 
 
 @pytest.mark.parametrize('additive', [False, True])
-def test_right_drag_selects_area_without_moving_nodes(editor, additive):
+def test_left_drag_selects_area_without_moving_nodes(editor, additive):
     original = editor.document.to_dict()
     other = editor.document.nodes[2]
     if additive:
         editor.scene.node_items[other.id].setSelected(True)
     start = editor.view.mapFromScene(QPointF(-70, -110))
     end = editor.view.mapFromScene(QPointF(190, 110))
-    drag(editor, Qt.RightButton, start, end, Qt.ControlModifier if additive else Qt.NoModifier)
+    drag(editor, Qt.LeftButton, start, end, Qt.ControlModifier if additive else Qt.NoModifier)
     wanted = {editor.document.nodes[0].id, editor.document.nodes[1].id}
     if additive:
         wanted.add(other.id)
@@ -101,10 +101,10 @@ def test_right_drag_selects_area_without_moving_nodes(editor, additive):
     assert not editor.dirty
 
 
-def test_right_drag_starting_on_node_never_moves_it(editor):
+def test_left_drag_starting_on_node_never_moves_it(editor):
     original = editor.document.to_dict()
     start = point(editor, 0)
-    drag(editor, Qt.RightButton, start, start + QPoint(80, 70))
+    drag(editor, Qt.LeftButton, start, start + QPoint(80, 70))
     assert editor.document.to_dict() == original
     assert editor.document.nodes[0].id in editor.scene.selected_ids()
     assert not editor.history.can_undo
@@ -115,9 +115,9 @@ def test_selected_node_moves_with_left_drag_children_and_undo(editor):
     entity, key = editor.document.nodes[:2]
     original = {node.id: (node.x, node.y) for node in (entity, key)}
     start = point(editor, 0)
-    QTest.mouseClick(viewport, Qt.RightButton, Qt.NoModifier, start)
+    QTest.mouseClick(viewport, Qt.LeftButton, Qt.NoModifier, start)
     end = start + editor.view.mapFromScene(QPointF(80, 40)) - editor.view.mapFromScene(QPointF())
-    drag(editor, Qt.LeftButton, start, end)
+    drag(editor, Qt.LeftButton, start, end, Qt.ShiftModifier)
     assert entity.x != original[entity.id][0]
     delta = (entity.x-original[entity.id][0], entity.y-original[entity.id][1])
     assert (key.x, key.y) == (original[key.id][0]+delta[0], original[key.id][1]+delta[1])
@@ -166,13 +166,13 @@ def test_escape_cancels_marquee_restoring_previous_selection(editor):
     viewport = editor.view.viewport()
     start = editor.view.mapFromScene(QPointF(370, 170))
     end = editor.view.mapFromScene(QPointF(590, 300))
-    QTest.mousePress(viewport, Qt.RightButton, Qt.NoModifier, start)
+    QTest.mousePress(viewport, Qt.LeftButton, Qt.NoModifier, start)
     QTest.mouseMove(viewport, end, delay=15)
-    assert editor.view._right_dragging
+    assert editor.view._selection_dragging
     QTest.keyClick(editor.view, Qt.Key_Escape)
-    QTest.mouseRelease(viewport, Qt.RightButton, Qt.NoModifier, end)
+    QTest.mouseRelease(viewport, Qt.LeftButton, Qt.NoModifier, end)
     assert editor.scene.selected_ids() == [first.id]
-    assert editor.view._right_origin is None
+    assert editor.view._selection_origin is None
     assert not editor.view._rubber_band.isVisible()
 
 
@@ -210,10 +210,10 @@ def test_focus_loss_cancels_marquee_and_preserves_previous_selection(editor):
     viewport = editor.view.viewport()
     start = editor.view.mapFromScene(QPointF(370, 170))
     end = editor.view.mapFromScene(QPointF(590, 300))
-    QTest.mousePress(viewport, Qt.RightButton, Qt.NoModifier, start)
+    QTest.mousePress(viewport, Qt.LeftButton, Qt.NoModifier, start)
     QTest.mouseMove(viewport, end, delay=15)
     QApplication.sendEvent(editor.view, QEvent(QEvent.WindowDeactivate))
-    QTest.mouseRelease(viewport, Qt.RightButton, Qt.NoModifier, end)
+    QTest.mouseRelease(viewport, Qt.LeftButton, Qt.NoModifier, end)
     assert editor.scene.selected_ids() == [first.id]
-    assert editor.view._right_origin is None
+    assert editor.view._selection_origin is None
     assert not editor.view._rubber_band.isVisible()

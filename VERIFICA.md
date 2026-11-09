@@ -1,12 +1,16 @@
-# Verifica di DrawER Studio 1.0.3
+# Verifica di DrawER Studio 1.0.4
 
 Data: 9 novembre 2026. Ambiente: Zorin OS 18.1 (base Ubuntu 24.04), Linux x86_64,
 glibc 2.39, Python 3.12.3 e PySide6/Qt 6.12.0.
 
 ## Risultati
 
-- **177 test automatici superati**, inclusi dominio, dialoghi, rendering,
+- **179 test automatici superati**, inclusi dominio, dialoghi, rendering,
   navigazione, note, routing e nuovi flussi interattivi Studio.
+- Verificati selezione rettangolare con il sinistro, navigazione con il destro,
+  spostamento delle figure con Maiusc+sinistro e trascinamento dei tratti.
+- Verificati attacchi liberi e cardinalità degli attributi dopo salvataggio,
+  riapertura e incolla. Eseguito su SQLite il DDL di un attributo (1,N).
 - Salvataggio e riapertura aggiornano il titolo predefinito al nome del file.
   Copia e incolla mantengono i nomi degli elementi.
 - Le freccette compaiono al passaggio del cursore e il dialogo chiede soltanto
@@ -18,8 +22,6 @@ glibc 2.39, Python 3.12.3 e PySide6/Qt 6.12.0.
 - Verificati primo avvio, salto e riapertura della guida, apertura degli esercizi
   e mantenimento del diagramma corrente mentre si legge una traccia.
 - Verificata la stabilità di 500 ricostruzioni della scena su 100 finestre.
-- Clic sinistro di selezione, spostamento, pan sullo sfondo, destro e selezione
-  rettangolare verificati tramite eventi Qt reali.
 - Maniglie di attacco provate su tutti i quattro lati/punte per entrambi gli
   estremi. Salvataggio, riapertura e annulla/ripeti conservano le scelte.
 - Pieghe spostabili con estremi fissi e tratti ortogonali; allineamento dei centri

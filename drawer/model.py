@@ -50,6 +50,8 @@ class Node:
     child_port: str | None = None
     connection_points: list[list[float]] = field(default_factory=list)
     label_offsets: dict[str, list[float]] = field(default_factory=dict)
+    attribute_card: str | None = None
+    parent_anchor_angle: float | None = None
 
 
 @dataclass
@@ -84,6 +86,9 @@ class Document:
             data = asdict(item)
             if data["label_offsets"] == {}:
                 del data["label_offsets"]
+            for key in ("attribute_card", "parent_anchor_angle"):
+                if data.get(key) is None:
+                    data.pop(key, None)
             return data
 
         return {"format": "drawer-desktop", "schema_version": SCHEMA_VERSION,
@@ -256,8 +261,17 @@ def _check_node(node: Node) -> None:
     for name in ("is_pk", "nullable", "unique", "derived", "isa_total", "isa_disjoint"):
         if type(getattr(node, name)) is not bool:
             raise ValueError(f"Proprietà {name} non booleana.")
+    if node.attribute_card is not None and (
+        node.kind != "attribute" or node.attribute_card not in CARDINALITIES
+    ):
+        raise ValueError("Cardinalità dell’attributo non valida.")
+    angle = node.parent_anchor_angle
+    if angle is not None and (node.kind not in ("attribute", "multivalue")
+                              or type(angle) not in (int, float) or not -math.pi <= angle <= math.pi):
+        raise ValueError("Punto di attacco dell’attributo non valido.")
     _check_geometry(node.parent_port, node.child_port, node.connection_points)
-    _check_label_offsets(node.label_offsets, {"isa"} if node.kind == "isa" else set())
+    _check_label_offsets(node.label_offsets, {"isa"} if node.kind == "isa" else
+                         {"attribute"} if node.kind == "attribute" else set())
 
 
 def _check_link(edge: Link) -> None:

@@ -70,7 +70,7 @@ def adapt_manual(points, start, end, start_side, end_side):
     return simplify(old)
 
 
-def shift_corner(points, index, position):
+def shift_corner(points, index, position, *, segment=None):
     """Sposta il tratto adiacente alla piega lungo l'asse del trascinamento.
 
     Gli estremi restano sul bordo: quando si muove un tratto terminale si
@@ -82,7 +82,8 @@ def shift_corner(points, index, position):
     def horizontal(a,b):
         return abs(a.y()-b.y()) < .01
     adjacent = [j for j in (index-1,index) if 0 <= j < len(initial)-1]
-    segment = next((j for j in adjacent if horizontal(initial[j],initial[j+1]) != horizontal_drag), adjacent[0])
+    if segment is None:
+        segment = next((j for j in adjacent if horizontal(initial[j],initial[j+1]) != horizontal_drag), adjacent[0])
     is_horizontal = horizontal(initial[segment],initial[segment+1])
     amount = delta.y() if is_horizontal else delta.x()
     move = QPointF(0,amount) if is_horizontal else QPointF(amount,0)

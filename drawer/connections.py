@@ -8,7 +8,7 @@ from PySide6.QtGui import (QColor,QPen,QPainterPath,QPainterPathStroker,QFont,
 from PySide6.QtWidgets import QGraphicsPathItem,QGraphicsItem
 
 from .model import PORTS
-from .geometry import nearest_port,adapt_manual,serialized
+from .geometry import NORMALS, nearest_port,adapt_manual,serialized
 from .routing import route
 from .controls import ConnectionHandle, EdgeLabel
 
@@ -59,11 +59,51 @@ class EdgeItem(QGraphicsPathItem):
         if self.link:self.link.route_points=points
         else:self.child.connection_points=points
 
+    @property
+    def attribute_connection(self):
+        return self.child is not None and self.child.kind in ('attribute', 'multivalue')
+
+    def set_attribute_anchor(self, position):
+        center = self._rect(self.source_item).center()
+        delta = position - center
+        if not delta.isNull():
+            self.child.parent_anchor_angle = math.atan2(delta.y(), delta.x())
+            self.set_port('source', None)
+            self.set_manual_points([])
+
+    def _attribute_points(self, source, target, sr, tr):
+        delta = tr.center() - sr.center()
+        angle = self.child.parent_anchor_angle
+        if angle is not None:
+            delta = QPointF(math.cos(angle), math.sin(angle))
+        elif self.source_port:
+            delta = NORMALS[self.source_port]
+        if delta.isNull():
+            delta = QPointF(1, 0)
+        x, y = abs(delta.x()) / (sr.width() / 2), abs(delta.y()) / (sr.height() / 2)
+        if source.node.kind == 'relation':
+            scale = x + y
+        elif source.node.kind == 'multivalue':
+            scale = math.hypot(x, y)
+        else:
+            scale = max(x, y)
+        start = sr.center() + delta / scale
+        if target.node.kind == 'multivalue':
+            delta = start - tr.center()
+            scale = math.hypot(delta.x() / (tr.width() / 2), delta.y() / (tr.height() / 2))
+            end = tr.center() + delta / (scale or 1)
+        else:
+            end = tr.center()
+        return [start, end]
+
     def geometry_snapshot(self):
-        return self.source_port,self.target_port,copy.deepcopy(self.manual_points)
+        return (self.source_port, self.target_port, copy.deepcopy(self.manual_points),
+                self.child.parent_anchor_angle if self.attribute_connection else None)
 
     def restore_geometry(self,state):
         self.set_port('source',state[0]);self.set_port('target',state[1]);self.set_manual_points(state[2])
+        if self.attribute_connection:
+            self.child.parent_anchor_angle = state[3]
 
     def pin_current_ports(self):
         if self.points:
@@ -80,6 +120,8 @@ class EdgeItem(QGraphicsPathItem):
 
     def reset_geometry(self):
         self.set_port('source',None);self.set_port('target',None);self.set_manual_points([])
+        if self.attribute_connection:
+            self.child.parent_anchor_angle = None
         self.update_path();self.editor.changed_by_user.emit()
 
     @staticmethod
@@ -103,21 +145,24 @@ class EdgeItem(QGraphicsPathItem):
         src,tgt=self.source_item,self.target_item
         if src is None or tgt is None:return
         sr,tr=self._rect(src),self._rect(tgt)
-        obstacles=[self._rect(item).adjusted(-8,-8,8,8) for item in self.editor.node_items.values()
-                   if item not in (src,tgt) and item.node.kind in ('entity','relation','multivalue')]
-        parallels=[link for link in self.editor.document.links if self.link and
-                   {link.source,link.target}=={self.link.source,self.link.target}]
-        lane=parallels.index(self.link) if self.link in parallels else 0
-        automatic=route(sr,tr,obstacles,lane,
-                        PORTS.index(self.source_port) if self.source_port else None,
-                        PORTS.index(self.target_port) if self.target_port else None)
-        if self.manual_points:
-            start,end=automatic[0],automatic[-1]
-            self.points=adapt_manual(self.manual_points,start,end,
-                self.source_port or nearest_port(sr,start),self.target_port or nearest_port(tr,end))
-            normalized=serialized(self.points)
-            if normalized!=self.manual_points:self.set_manual_points(normalized)
-        else:self.points=automatic
+        if self.attribute_connection and not self.manual_points:
+            self.points = self._attribute_points(src, tgt, sr, tr)
+        else:
+            obstacles=[self._rect(item).adjusted(-8,-8,8,8) for item in self.editor.node_items.values()
+                       if item not in (src,tgt) and item.node.kind in ('entity','relation','multivalue')]
+            parallels=[link for link in self.editor.document.links if self.link and
+                       {link.source,link.target}=={self.link.source,self.link.target}]
+            lane=parallels.index(self.link) if self.link in parallels else 0
+            automatic=route(sr,tr,obstacles,lane,
+                            PORTS.index(self.source_port) if self.source_port else None,
+                            PORTS.index(self.target_port) if self.target_port else None)
+            if self.manual_points:
+                start,end=automatic[0],automatic[-1]
+                self.points=adapt_manual(self.manual_points,start,end,
+                    self.source_port or nearest_port(sr,start),self.target_port or nearest_port(tr,end))
+                normalized=serialized(self.points)
+                if normalized!=self.manual_points:self.set_manual_points(normalized)
+            else:self.points=automatic
         self.prepareGeometryChange()
         path=QPainterPath(self.points[0])
         for point in self.points[1:]:path.lineTo(point)
@@ -132,6 +177,9 @@ class EdgeItem(QGraphicsPathItem):
             self._triangle=[tip,tip+normal*15+perpendicular*7,tip+normal*15-perpendicular*7]
             code=('t' if self.child.isa_total else 'p')+','+('d' if self.child.isa_disjoint else 's')
             self.add_label('isa','('+code+')',path.pointAtPercent(.55)+QPointF(8,-18))
+        if self.attribute_connection and self.child.attribute_card:
+            point = path.pointAtPercent(.72)
+            self.add_label('attribute', '(' + self.child.attribute_card + ')', point + QPointF(7, -19))
         if self.link:
             inheritance=src.node.kind=='isa' or tgt.node.kind=='isa'
             for key,item,card,p,q in (('source',src,self.link.source_card,self.points[0],self.points[1]),
@@ -162,13 +210,16 @@ class EdgeItem(QGraphicsPathItem):
 
     def _update_handles(self):
         specifications=[]
-        if self.points:
+        if self.points and self.attribute_connection:
+            specifications.append(('source', 0, self.points[0]))
+        elif self.points:
             for end,item,point in (('source',self.source_item,self.points[0]),('target',self.target_item,self.points[-1])):
                 if item.node.kind in ('entity','relation','multivalue'):
                     specifications.append((end,0,point))
             specifications += [('corner',i,point) for i,point in enumerate(self.points[1:-1],1)]
-            if len(self.points)==2:
-                specifications.append(('corner',1,(self.points[0]+self.points[1])/2))
+            specifications += [('segment', i, (a+b)/2)
+                               for i, (a,b) in enumerate(zip(self.points,self.points[1:]))
+                               if (b-a).manhattanLength() >= 50 or len(self.points) == 2]
         if self.isSelected() and self.scene():
             while len(self.handles)<len(specifications):
                 handle=ConnectionHandle(self);self.editor.addItem(handle);self.handles.append(handle)
@@ -179,8 +230,13 @@ class EdgeItem(QGraphicsPathItem):
             if visible:
                 handle.kind,handle.index,position=specifications[i]
                 handle.setPos(position)
-                handle.setToolTip('Trascina su uno dei quattro punti di attacco' if handle.kind!='corner'
-                                  else 'Trascina la piega per spostare il tratto in orizzontale o verticale')
+                if handle.kind == 'source' and self.attribute_connection:
+                    tooltip = 'Trascina per scegliere un punto sul contorno'
+                elif handle.kind in ('source', 'target'):
+                    tooltip = 'Trascina su uno dei quattro punti di attacco'
+                else:
+                    tooltip = 'Trascina per spostare il tratto o la piega'
+                handle.setToolTip(tooltip)
 
     def itemChange(self,change,value):
         result=super().itemChange(change,value)

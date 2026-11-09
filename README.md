@@ -13,9 +13,15 @@ Il progetto è stato sviluppato in **vibe coding insieme all’intelligenza arti
 - **Salvataggio ed esportazione.** Conserva i progetti modificabili in formato `.erdraw`. Esporta in PNG con sfondo bianco e ritaglio sul contenuto, SVG o PDF. Genera anche SQL preliminare per SQLite e PostgreSQL.
 - **Didattica.** Segui la guida contestuale o prova gli esercizi con suggerimenti facoltativi dal menu **Aiuto**, dove trovi anche l’esempio universitario.
 
+## Comandi sul foglio
+
+- **Sinistro** per selezionare un oggetto o trascinare un riquadro. **Destro** per spostare la vista.
+- **Maiusc+sinistro** per spostare le figure. Seleziona un arco per trascinare attacchi, tratti ed etichette.
+- Gli attributi si attaccano lungo tutto il contorno del proprietario. Nelle proprietà puoi attivare la cardinalità e scegliere tra (0,1), (1,1), (0,N) e (1,N).
+
 ## Avvio su Linux
 
-Il pacchetto portabile della versione **1.0.3** per Linux x86_64 è stato verificato su Zorin OS 18.1, basato su Ubuntu 24.04. Estrai tutto l’archivio e avvia **DrawER Studio** dalla cartella estratta, lasciando accanto all’eseguibile la sottocartella `_internal`. Il pacchetto include il runtime.
+Il pacchetto portabile della versione **1.0.4** per Linux x86_64 è stato verificato su Zorin OS 18.1, basato su Ubuntu 24.04. Estrai tutto l’archivio e avvia **DrawER Studio** dalla cartella estratta, lasciando accanto all’eseguibile la sottocartella `_internal`. Il pacchetto include il runtime.
 
 ## Avvio dai sorgenti
 
@@ -46,7 +52,7 @@ python -m pytest -q
 python tools/build.py
 ```
 
-La build usa PyInstaller e genera il pacchetto in `dist/DrawER Studio/`.
+La build usa PyInstaller e genera il pacchetto in `dist/DrawER Studio/`. Su Linux puoi installarlo con `sh tools/install_linux.sh "dist/DrawER Studio" 1.0.4` e aprirlo dal collegamento sulla Scrivania. I sorgenti di ogni rilascio sono pubblicati su `main`.
 
 ## Esportazione SQL
 

@@ -387,3 +387,17 @@ def test_example_is_valid_and_sql_executes():
     db = database(doc)
     names = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert names == {"Studente", "Corso", "Docente", "Iscrizione"}
+
+
+def test_repeatable_entity_attribute_generates_separate_sqlite_table():
+    doc = Document()
+    owner = entity(doc, "Persona")
+    doc.nodes.append(Node(kind="attribute", name="Telefono", parent_id=owner.id,
+                          attribute_card="1,N"))
+    ddl = generate_sql(doc, "sqlite")
+    assert "MINIMO NON IMPOSTO: Persona.Telefono (1,N)" in ddl
+    with sqlite3.connect(":memory:") as db:
+        db.executescript(ddl)
+        db.execute('INSERT INTO "Persona" VALUES (1)')
+        db.executemany('INSERT INTO "Persona_Telefono" VALUES (?, ?)', [(1, "123"), (1, "456")])
+        assert db.execute('SELECT COUNT(*) FROM "Persona_Telefono"').fetchone()[0] == 2

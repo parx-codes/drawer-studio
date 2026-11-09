@@ -305,7 +305,7 @@ class DiagramScene(QGraphicsScene):
     def set_mode(self, mode):
         self.cancel_direct_connection()
         self.mode, self.connect_source = mode, None
-        self.hint.emit({'select':'Clic: seleziona · trascina sullo sfondo: naviga · freccette: collega · clic su un arco: modifica gli attacchi',
+        self.hint.emit({'select':'Sinistro: seleziona · destro: naviga · Maiusc+sinistro: sposta le figure',
                         'connect':'Scegli il primo oggetto, poi il secondo. Esc per annullare.',
                         'attribute':'Clicca l’entità, la relazione o il multivalore proprietario dell’attributo.',
                         'multivalue':'Clicca l’entità proprietaria dell’attributo multivalore.',
@@ -441,7 +441,7 @@ class DiagramView(QGraphicsView):
     def __init__(self, scene, parent=None):
         super().__init__(scene,parent)
         self.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing)
-        # Il sinistro seleziona e sposta gli oggetti; sullo sfondo naviga.
+        # Il sinistro seleziona, il destro sposta la vista.
         self.setDragMode(QGraphicsView.NoDrag)
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
@@ -450,10 +450,10 @@ class DiagramView(QGraphicsView):
         self.setFrameShape(QGraphicsView.NoFrame)
         self._panning, self._space = False, False
         self._pan_button = None
-        self._right_origin = None
-        self._right_dragging = False
-        self._right_additive = False
-        self._right_baseline = []
+        self._selection_origin = None
+        self._selection_dragging = False
+        self._selection_additive = False
+        self._selection_baseline = []
         self._left_item_drag = False
         self._rubber_band = QRubberBand(QRubberBand.Rectangle, self.viewport())
         self._rubber_band.setAttribute(Qt.WA_TransparentForMouseEvents, True)
@@ -521,8 +521,8 @@ class DiagramView(QGraphicsView):
         self.setCursor(Qt.ClosedHandCursor)
         event.accept()
 
-    def _apply_right_rectangle(self, position):
-        rectangle = QRect(self._right_origin, position).normalized()
+    def _apply_selection_rectangle(self, position):
+        rectangle = QRect(self._selection_origin, position).normalized()
         self._rubber_band.setGeometry(rectangle)
         self._rubber_band.show()
         path = QPainterPath()
@@ -530,8 +530,8 @@ class DiagramView(QGraphicsView):
         path.closeSubpath()
         selected = {item for item in self.scene().items(path, Qt.IntersectsItemShape)
                     if item.flags() & QGraphicsItem.ItemIsSelectable}
-        if self._right_additive:
-            selected.update(item for identifier in self._right_baseline
+        if self._selection_additive:
+            selected.update(item for identifier in self._selection_baseline
                             if (item := self.scene().find_item(identifier)) is not None)
         for item in self.scene().selectedItems():
             if item not in selected:
@@ -540,48 +540,50 @@ class DiagramView(QGraphicsView):
             item.setSelected(True)
 
     def _reset_gesture(self, restore_selection=False):
-        if restore_selection and self._right_origin is not None:
+        if restore_selection and self._selection_origin is not None:
             self.scene().clearSelection()
-            for identifier in self._right_baseline:
+            for identifier in self._selection_baseline:
                 item = self.scene().find_item(identifier)
                 if item:
                     item.setSelected(True)
-        self._right_origin = None
-        self._right_dragging = False
-        self._right_baseline = []
+        self._selection_origin = None
+        self._selection_dragging = False
+        self._selection_baseline = []
         self._rubber_band.hide()
         self._panning = False
         self._pan_button = None
         self._normal_cursor()
 
     def mousePressEvent(self,event):
-        if event.button() == Qt.RightButton:
-            if self._panning:
-                event.accept()
-                return
-            if event.modifiers() & Qt.ShiftModifier:
-                self._reset_gesture()
-                point = event.position().toPoint()
-                self.scene().show_context_menu(self.mapToScene(point), event.globalPosition().toPoint())
-            else:
-                self._right_origin = event.position().toPoint()
-                self._right_dragging = False
-                self._right_additive = bool(event.modifiers() & Qt.ControlModifier)
-                self._right_baseline = self.scene().selected_ids()
+        button, modifiers = event.button(), event.modifiers()
+        if button == Qt.RightButton and modifiers & Qt.ShiftModifier:
+            point = event.position().toPoint()
+            self.scene().show_context_menu(self.mapToScene(point), event.globalPosition().toPoint())
             event.accept()
             return
-        if event.button() == Qt.MiddleButton or (self._space and event.button() == Qt.LeftButton):
-            self._begin_pan(event)
+        if button in (Qt.RightButton, Qt.MiddleButton) or (self._space and button == Qt.LeftButton):
+            if not self._panning and self._selection_origin is None and not self.scene().mouseGrabberItem():
+                self._begin_pan(event)
+            event.accept()
             return
-        if event.button() == Qt.LeftButton and self.scene().mode == 'select':
-            if any(getattr(item,'interactive_handle',False) for item in self.items(event.position().toPoint())):
+        if self._panning:
+            event.accept()
+            return
+        if button == Qt.LeftButton and self.scene().mode == 'select':
+            point = event.position().toPoint()
+            if any(getattr(item,'interactive_handle',False) for item in self.items(point)):
                 super().mousePressEvent(event)
                 return
-            item = self._selectable_at(event.position().toPoint())
-            if not item:
-                self._begin_pan(event)
+            item = self._selectable_at(point)
+            if modifiers & Qt.ShiftModifier and isinstance(item, NodeItem):
+                self._left_item_drag = True
+                super().mousePressEvent(event)
                 return
-            self._left_item_drag = bool(item.flags() & QGraphicsItem.ItemIsMovable)
+            self._selection_origin = point
+            self._selection_additive = bool(modifiers & Qt.ControlModifier)
+            self._selection_baseline = self.scene().selected_ids()
+            event.accept()
+            return
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self,event):
@@ -593,12 +595,12 @@ class DiagramView(QGraphicsView):
             self.horizontalScrollBar().setValue(self.horizontalScrollBar().value()-round(delta.x()))
             self.verticalScrollBar().setValue(self.verticalScrollBar().value()-round(delta.y()))
             event.accept()
-        elif self._right_origin is not None:
+        elif self._selection_origin is not None:
             position = event.position().toPoint()
-            if (position-self._right_origin).manhattanLength() >= QApplication.startDragDistance():
-                self._right_dragging = True
-            if self._right_dragging:
-                self._apply_right_rectangle(position)
+            if (position-self._selection_origin).manhattanLength() >= QApplication.startDragDistance():
+                self._selection_dragging = True
+            if self._selection_dragging:
+                self._apply_selection_rectangle(position)
             event.accept()
         else:
             super().mouseMoveEvent(event)
@@ -609,12 +611,12 @@ class DiagramView(QGraphicsView):
             self._update_port_hover(event.position().toPoint())
             event.accept()
             return
-        if event.button() == Qt.RightButton and self._right_origin is not None:
-            if self._right_dragging:
-                self._apply_right_rectangle(event.position().toPoint())
+        if event.button() == Qt.LeftButton and self._selection_origin is not None:
+            if self._selection_dragging:
+                self._apply_selection_rectangle(event.position().toPoint())
             else:
                 item = self._selectable_at(event.position().toPoint())
-                if self._right_additive:
+                if self._selection_additive:
                     if item:
                         item.setSelected(not item.isSelected())
                 else:

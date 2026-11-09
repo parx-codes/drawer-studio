@@ -120,6 +120,7 @@ def edit_node(parent: QWidget | None, node: Node, doc: Document | None = None) -
     if node.kind != 'isa':
         form.addRow("Dimensioni", dimensions)
 
+    cardinality = use_cardinality = None
     data_type = None
     primary = nullable = unique = derived = None
     if node.kind in ("attribute", "multivalue"):
@@ -158,6 +159,27 @@ def edit_node(parent: QWidget | None, node: Node, doc: Document | None = None) -
 
         primary.toggled.connect(sync_constraints)
         sync_constraints()
+        if node.kind == "attribute":
+            use_cardinality = QCheckBox("Specifica cardinalità")
+            use_cardinality.setObjectName("attributeCardEnabled")
+            use_cardinality.setChecked(node.attribute_card is not None)
+            cardinality = _card_combo(node.attribute_card or "1,1")
+            cardinality.setObjectName("attributeCard")
+            form.addRow("Cardinalità", use_cardinality)
+            form.addRow("", cardinality)
+
+            def sync_cardinality():
+                enabled = use_cardinality.isChecked()
+                cardinality.setEnabled(enabled)
+                allows_key = not enabled or cardinality.currentText() == "1,1"
+                if not allows_key:
+                    primary.setChecked(False)
+                primary.setEnabled(allows_key)
+
+            use_cardinality.toggled.connect(sync_cardinality)
+            cardinality.currentTextChanged.connect(sync_cardinality)
+            sync_cardinality()
+
 
     hierarchy = None
     if node.kind == "isa":
@@ -223,6 +245,8 @@ def edit_node(parent: QWidget | None, node: Node, doc: Document | None = None) -
                 return
         if owner is not None:
             result.parent_id = owner.currentData()
+        if cardinality is not None:
+            result.attribute_card = cardinality.currentText() if use_cardinality.isChecked() else None
         result.width = width.value()
         result.height = height.value()
         result.notes = notes.toPlainText().strip()
@@ -266,6 +290,22 @@ def edit_link(parent: QWidget | None, link: Link, doc: Document) -> Link | None:
                 cards[field] = _card_combo(getattr(link, field))
                 form.addRow(f"Cardinalità · {node.name}" if two_entities
                             else "Cardinalità", cards[field])
+    ports = {}
+    if any(existing.id == link.id for existing in doc.links):
+        for end, node in (("source", source), ("target", target)):
+            if node and node.kind in ("entity", "relation", "multivalue"):
+                field = end + "_port"
+                combo = QComboBox()
+                combo.addItem("Automatico", None)
+                for label, side in zip(("Alto", "Destra", "Basso", "Sinistra"),
+                                       ("top", "right", "bottom", "left")):
+                    combo.addItem(label, side)
+                combo.setCurrentIndex(combo.findData(getattr(link, field)))
+                ports[field] = combo
+                form.addRow(f"Attacco · {node.name}", combo)
+    reset_route = QCheckBox("Ricalcola il percorso automaticamente")
+    if ports and link.route_points:
+        form.addRow("", reset_route)
     role = QLineEdit(link.role)
     role.setObjectName("linkRole")
     role.setMaxLength(1024)
@@ -281,6 +321,11 @@ def edit_link(parent: QWidget | None, link: Link, doc: Document) -> Link | None:
     def accept() -> None:
         for field, combo in cards.items():
             setattr(result, field, combo.currentText())
+        changed_ports = any(combo.currentData() != getattr(link, field) for field, combo in ports.items())
+        for field, combo in ports.items():
+            setattr(result, field, combo.currentData())
+        if changed_ports or reset_route.isChecked():
+            result.route_points = []
         result.role = role.text().strip()
         dialog.accept()
 
@@ -474,14 +519,10 @@ class HelpDialog(QDialog):
         rimane nel diagramma ma non viene materializzato nello SQL.</p>
         <h2>Muoversi e modificare</h2>
         <ul>
-          <li>Il <b>clic sinistro seleziona</b> un elemento; trascinalo per spostarlo.
-          Trascina con il sinistro sullo sfondo per navigare.</li>
-          <li>Seleziona un'entità, una relazione, un multivalore o una nota e
-          <b>trascina un angolo</b> per ridimensionare la figura.</li>
-          <li>Usa il <b>tasto destro</b> per selezionare un elemento; Ctrl+destro
-          aggiunge o rimuove elementi dalla selezione. Trascina con il destro per
-          selezionare un rettangolo. Per spostare gli elementi già selezionati,
-          trascinali con il sinistro.</li>
+          <li>Fai clic con il <b>sinistro</b> per selezionare un elemento o
+          trascina per selezionare un'area. Tieni premuto <b>Ctrl</b> per estendere la selezione.</li>
+          <li>Trascina con il <b>destro</b> per spostare la vista. Usa <b>Maiusc+sinistro</b>
+          per spostare le figure e trascina un angolo di una figura selezionata per ridimensionarla.</li>
           <li><b>Doppio clic sinistro</b> apre le proprietà; <b>Maiusc+destro</b>
           apre il menu contestuale.</li>
           <li>Ruota la rotella per lo zoom. Trascina con il tasto centrale o con

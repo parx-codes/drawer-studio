@@ -75,6 +75,11 @@ def test_drag_endpoint_uses_exact_midpoint_or_diamond_vertex(editor,tmp_path,end
     item=edge.source_item if end=='source' else edge.target_item
     destination=port_point(item.mapRectToScene(item.body_rect()),side)
     handle=next(handle for handle in edge.handles if handle.kind==end)
+    previous = None
+    if handle.scenePos() == destination:
+        previous = PORTS[(PORTS.index(side) + 2) % 4]
+        edge.set_port(end, previous)
+        editor.commit()
     drag(editor,handle.scenePos(),destination)
     assert getattr(editor.document.links[0],end+'_port')==side
     assert (edge.points[0] if end=='source' else edge.points[-1])==destination
@@ -83,13 +88,13 @@ def test_drag_endpoint_uses_exact_midpoint_or_diamond_vertex(editor,tmp_path,end
     save_document(editor.document,tmp_path/'ports.erdraw')
     assert getattr(load_document(tmp_path/'ports.erdraw').links[0],end+'_port')==side
     editor.undo()
-    assert getattr(editor.document.links[0],end+'_port') is None
+    assert getattr(editor.document.links[0],end+'_port') == previous
 
 
 def test_bend_drag_keeps_endpoints_and_is_persistent_undoable(editor,tmp_path):
     edge=editor.scene.edge_items[0];edge.setSelected(True)
     first,last=QPointF(edge.points[0]),QPointF(edge.points[-1])
-    handle=next(handle for handle in edge.handles if handle.kind=='corner')
+    handle=next(handle for handle in edge.handles if handle.kind=='segment')
     drag(editor,handle.scenePos(),handle.scenePos()+QPointF(0,-100))
     assert edge.points[0]==first and edge.points[-1]==last
     assert min(point.y() for point in edge.points)<-20
@@ -236,7 +241,7 @@ def test_ctrl_x_keyboard_cuts_selected_node_and_undo_restores(editor):
 
 def test_moving_node_adapts_manual_route_and_undo_keeps_exact_geometry(editor,tmp_path):
     edge=editor.scene.edge_items[0];edge.setSelected(True)
-    handle=next(h for h in edge.handles if h.kind=='corner')
+    handle=next(h for h in edge.handles if h.kind=='segment')
     drag(editor,handle.scenePos(),handle.scenePos()+QPointF(0,-80))
     original=editor.document.to_dict()
     source=edge.source_item
@@ -393,21 +398,29 @@ def test_rename_keeps_previous_recovery_discoverable(app,tmp_path,monkeypatch):
         QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
 
 
-def test_attribute_manual_bend_and_paste_keep_valid_geometry(editor):
-    owner=Node(name='Persona')
-    attribute=Node(kind='attribute',name='email',parent_id=owner.id,x=300,y=40)
-    editor.replace_document(Document(nodes=[owner,attribute]))
-    edge=editor.scene.edge_items[0];edge.setSelected(True)
-    handle=next(h for h in edge.handles if h.kind=='corner')
-    drag(editor,handle.scenePos(),handle.scenePos()+QPointF(0,-80))
-    assert attribute.child_port=='left'
-    editor.scene.clearSelection();editor.scene.node_items[attribute.id].setSelected(True)
-    editor.copy_selection();editor.paste_selection()
-    pasted=next(n for n in editor.document.nodes if n.id not in (owner.id,attribute.id))
-    assert pasted.connection_points
-    assert Document.from_dict(editor.document.to_dict()).node(pasted.id) is not None
-    editor.undo();editor.redo()
-    assert editor.document.node(pasted.id).connection_points
+def test_attribute_anchor_and_cardinality_survive_save_and_paste(editor, tmp_path):
+    owner = Node(name='Persona')
+    attribute = Node(kind='attribute', name='telefono', parent_id=owner.id,
+                     attribute_card='1,N', x=300, y=40)
+    editor.replace_document(Document(nodes=[owner, attribute]))
+    edge = editor.scene.edge_items[0]
+    assert edge.labels[0].text() == '(1,N)'
+    edge.setSelected(True)
+    handle = next(h for h in edge.handles if h.kind == 'source')
+    drag(editor, handle.scenePos(), QPointF(42, 0))
+    assert abs(edge.points[0].x() - 42) < 2
+    assert edge.points[0].y() == 0
+    assert attribute.parent_anchor_angle is not None
+    path = tmp_path / 'attributo.erdraw'
+    save_document(editor.document, path)
+    assert load_document(path).node(attribute.id).parent_anchor_angle == attribute.parent_anchor_angle
+    editor.scene.clearSelection()
+    editor.scene.node_items[attribute.id].setSelected(True)
+    editor.copy_selection()
+    editor.paste_selection()
+    pasted = next(n for n in editor.document.nodes if n.id not in (owner.id, attribute.id))
+    assert pasted.parent_anchor_angle == attribute.parent_anchor_angle
+    assert pasted.attribute_card == '1,N'
 
 
 def test_manual_isa_branch_preserves_junction_normal_when_child_moves(editor):
@@ -417,7 +430,7 @@ def test_manual_isa_branch_preserves_junction_normal_when_child_moves(editor):
     link=Link(isa.id,child.id,source_port='right',target_port='left')
     editor.replace_document(Document(nodes=[parent,isa,child],links=[link]))
     edge=next(e for e in editor.scene.edge_items if e.link);edge.setSelected(True)
-    handle=next(h for h in edge.handles if h.kind=='corner')
+    handle=next(h for h in edge.handles if h.kind=='segment')
     drag(editor,handle.scenePos(),handle.scenePos()+QPointF(0,80))
     assert link.source_port=='right'
     item=editor.scene.node_items[child.id];item.setPos(item.pos()+QPointF(40,80))

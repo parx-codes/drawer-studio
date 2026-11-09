@@ -88,6 +88,8 @@ class ConnectionHandle(QGraphicsObject):
         painter.setBrush(QColor('#ffffff'))
         if self.kind in ('source','target'):
             painter.drawEllipse(QRectF(-5,-5,10,10))
+        elif self.kind == 'segment':
+            painter.drawRoundedRect(QRectF(-5,-3,10,6), 2, 2)
         else:
             painter.drawRect(QRectF(-4,-4,8,8))
 
@@ -103,23 +105,37 @@ class ConnectionHandle(QGraphicsObject):
     def mouseMoveEvent(self,event):
         if not self._dragging:
             return
-        if self._kind in ('source','target'):
-            item = self.edge.source_item if self._kind=='source' else self.edge.target_item
-            side = nearest_port(item.mapRectToScene(item.body_rect()),event.scenePos())
-            previous = self.edge.source_port if self._kind=='source' else self.edge.target_port
-            if side != previous:
-                self.edge.set_port(self._kind,side)
-                self.edge.set_manual_points([])
+        edge = self.edge
+        delta = event.scenePos() - self._origin
+        if delta.manhattanLength() < .5:
+            edge.restore_geometry(self._before)
+        elif self._kind == 'source' and edge.attribute_connection:
+            edge.set_attribute_anchor(event.scenePos())
+        elif self._kind in ('source','target'):
+            item = edge.source_item if self._kind == 'source' else edge.target_item
+            side = nearest_port(item.mapRectToScene(item.body_rect()), event.scenePos())
+            edge.restore_geometry(self._before)
+            initial = self._before[0 if self._kind == 'source' else 1]
+            start = self._points[0 if self._kind == 'source' else -1]
+            if side != (initial or nearest_port(item.mapRectToScene(item.body_rect()), start)):
+                edge.set_port(self._kind, side)
+                edge.set_manual_points([])
         else:
-            points = shift_corner(self._points,self._index,
-                                  self._points[self._index]+event.scenePos()-self._origin)
+            segment = self._index if self._kind == 'segment' else None
+            points = shift_corner(self._points, self._index, self._points[self._index]+delta,
+                                  segment=segment)
             if len(points) > 256:
                 return
-            self.edge.pin_current_ports()
-            self.edge.set_manual_points(serialized(points))
-        self.edge.update_path()
-        self.setPos(self.edge.points[0] if self._kind=='source' else self.edge.points[-1]
-                    if self._kind=='target' else event.scenePos())
+            edge.restore_geometry(self._before)
+            if points != self._points:
+                edge.points = self._points
+                edge.pin_current_ports()
+                edge.set_manual_points(serialized(points))
+        edge.update_path()
+        if self._kind in ('source','target'):
+            self.setPos(edge.points[0 if self._kind == 'source' else -1])
+        else:
+            self.setPos(event.scenePos())
         event.accept()
 
     def mouseReleaseEvent(self,event):

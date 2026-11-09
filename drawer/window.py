@@ -393,6 +393,7 @@ class MainWindow(QMainWindow):
                 if node.kind=='multivalue' and self.document.attributes(node.id):
                     info += [f'Aggregato di {len(self.document.attributes(node.id))} attributi','Tabella separata nello schema relazionale']
                 else:info += [node.data_type,'Chiave primaria' if node.is_pk else ('Facoltativo (NULL)' if node.nullable else 'Obbligatorio (NOT NULL)')]
+                if node.attribute_card: info.append(f'Cardinalità ({node.attribute_card})')
                 if node.unique: info.append('Valori univoci')
                 if node.derived: info.append('Derivato · escluso dal DDL')
             elif node.kind in ('entity','relation'):
@@ -427,7 +428,7 @@ class MainWindow(QMainWindow):
         else:
             self.inspector_type.setText('SELEZIONE MULTIPLA' if ids else 'NESSUNA SELEZIONE')
             self.inspector_name.setText(f'{len(ids)} elementi' if ids else 'Inizia con un’entità')
-            self.inspector_info.setText('Trascina con il sinistro per spostare gli elementi selezionati.' if ids else 'Clicca sugli oggetti per selezionarli; trascina sullo sfondo per navigare. Le freccette permettono di collegare gli oggetti direttamente sul foglio.')
+            self.inspector_info.setText('Maiusc+sinistro sposta gli elementi selezionati.' if ids else 'Trascina col sinistro per selezionare un’area e col destro per spostare la vista. Le freccette permettono di collegare gli oggetti direttamente sul foglio.')
 
     def commit(self,rebuild=False,selected=None):
         if rebuild:
@@ -500,6 +501,9 @@ class MainWindow(QMainWindow):
                 old_parent=child.parent_id
                 child.parent_id=parent.id;child.parent_port=parent_side;child.child_port=child_side
                 child.connection_points=[]
+                child.parent_anchor_angle = None
+                if child.kind in ('attribute', 'multivalue'):
+                    child.parent_port = child.child_port = None
                 if child.kind in ('attribute','multivalue'):
                     self.document.links=[edge for edge in self.document.links if
                         {edge.source,edge.target} not in ({child.id,parent.id},{child.id,old_parent})]
@@ -522,6 +526,9 @@ class MainWindow(QMainWindow):
             if result:
                 self.document.nodes[self.document.nodes.index(node)]=result
                 if result.kind in ('attribute','multivalue') and result.parent_id:
+                    if result.parent_id != node.parent_id:
+                        result.parent_anchor_angle = result.parent_port = result.child_port = None
+                        result.connection_points = []
                     # Il proprietario appena confermato sostituisce l'eventuale
                     # arco grafico dei file web; la scena lo genera dal parent_id.
                     self.document.links=[link for link in self.document.links

@@ -90,8 +90,9 @@ def test_link_edit_preserves_original(app, monkeypatch):
 
     def accept(dialog):
         cards = dialog.findChildren(QComboBox)
-        assert len(cards) == 1
+        assert len(cards) == 3
         cards[0].setCurrentText("1,1")
+        cards[1].setCurrentText("Basso")
         assert cards[0].isEnabled()
         dialog.findChild(QLineEdit, "linkRole").setText("studente")
         return _accept(dialog)
@@ -99,6 +100,7 @@ def test_link_edit_preserves_original(app, monkeypatch):
     monkeypatch.setattr(QDialog, "exec", accept)
     result = edit_link(None, link, doc)
     assert result.source_card == "1,1"
+    assert result.source_port == "bottom" and link.source_port is None
     assert result.role == "studente"
     assert link.source_card == "0,N" and link.role == ""
 
@@ -185,3 +187,20 @@ def test_text_note_accepts_multiline_and_roundtrips(app, monkeypatch):
     assert restored.nodes[0].name == result.name
     assert result.name.count("\n") == 2
     assert note.name == "Prima"
+
+
+def test_attribute_cardinality_is_opt_in(app, monkeypatch):
+    node = Node(kind="attribute", name="Telefono")
+
+    def accept(dialog):
+        enabled = dialog.findChild(QCheckBox, "attributeCardEnabled")
+        choices = dialog.findChild(QComboBox, "attributeCard")
+        assert not enabled.isChecked() and not choices.isEnabled()
+        enabled.setChecked(True)
+        choices.setCurrentText("1,N")
+        assert choices.isEnabled() and not dialog.findChild(QCheckBox, "primaryKey").isEnabled()
+        return _accept(dialog)
+
+    monkeypatch.setattr(QDialog, "exec", accept)
+    assert edit_node(None, node).attribute_card == "1,N"
+    assert node.attribute_card is None
