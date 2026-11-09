@@ -575,7 +575,10 @@ class DiagramView(QGraphicsView):
                 super().mousePressEvent(event)
                 return
             item = self._selectable_at(point)
-            if modifiers & Qt.ShiftModifier and isinstance(item, NodeItem):
+            move_attribute = (isinstance(item, NodeItem)
+                              and item.node.kind in ('attribute', 'multivalue')
+                              and modifiers == Qt.NoModifier)
+            if isinstance(item, NodeItem) and (move_attribute or modifiers & Qt.ShiftModifier):
                 self._left_item_drag = True
                 super().mousePressEvent(event)
                 return

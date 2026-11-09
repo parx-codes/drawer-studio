@@ -1,5 +1,9 @@
 # Novità di DrawER Studio
 
+## 1.0.5
+
+- Attributi semplici e multivalori si spostano trascinandoli con il sinistro.
+
 ## 1.0.4
 
 - Il sinistro seleziona un oggetto o un’area. Il destro sposta la vista.

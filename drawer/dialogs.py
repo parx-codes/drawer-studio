@@ -520,7 +520,7 @@ class HelpDialog(QDialog):
         <h2>Muoversi e modificare</h2>
         <ul>
           <li>Fai clic con il <b>sinistro</b> per selezionare un elemento o
-          trascina per selezionare un'area. Tieni premuto <b>Ctrl</b> per estendere la selezione.</li>
+          trascina per selezionare un'area. Trascina direttamente un attributo per spostarlo. Tieni premuto <b>Ctrl</b> per estendere la selezione.</li>
           <li>Trascina con il <b>destro</b> per spostare la vista. Usa <b>Maiusc+sinistro</b>
           per spostare le figure e trascina un angolo di una figura selezionata per ridimensionarla.</li>
           <li><b>Doppio clic sinistro</b> apre le proprietà; <b>Maiusc+destro</b>

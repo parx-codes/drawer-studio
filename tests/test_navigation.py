@@ -128,6 +128,26 @@ def test_selected_node_moves_with_left_drag_children_and_undo(editor):
         assert (node.x, node.y) == coords
 
 
+@pytest.mark.parametrize('kind', ['attribute', 'multivalue'])
+def test_left_drag_moves_attribute_and_refreshes_link(editor, kind):
+    owner, attribute = editor.document.nodes[:2]
+    attribute.kind = kind
+    editor.commit(rebuild=True)
+    item = editor.scene.node_items[attribute.id]
+    initial = QPointF(item.pos())
+    edge = editor.scene.edge_items[0]
+    old_end = QPointF(edge.points[-1])
+    start = editor.view.mapFromScene(item.mapToScene(item.body_rect().center()))
+    drag(editor, Qt.LeftButton, start, start + QPoint(65, -40))
+    assert item.pos() != initial
+    assert edge.points[-1] != old_end
+    assert (owner.x, owner.y) == (0, 0)
+    assert editor.scene.selected_ids() == [attribute.id]
+    editor.undo()
+    restored = editor.document.node(attribute.id)
+    assert (restored.x, restored.y) == (initial.x(), initial.y())
+
+
 def test_creation_mode_keeps_left_click_and_right_does_not_create(editor):
     created = []
     editor.scene.create_requested.disconnect()
