@@ -1,5 +1,11 @@
 # Novità di DrawER Studio
 
+## 1.0.9
+
+- Prima di esportare, DrawER Studio chiede di salvare il progetto .erdraw
+  con le modifiche correnti e propone lo stesso nome per il file esportato.
+- Salvataggi ed esportazioni ricordano separatamente l’ultima cartella usata.
+
 ## 1.0.8
 
 - Il trascinamento sinistro sposta le relazioni insieme ai loro attributi.

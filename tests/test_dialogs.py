@@ -134,14 +134,15 @@ def test_recursive_relationship_requires_distinct_roles(app, monkeypatch):
 
 
 def test_sql_and_help_dialogs_construct_and_sql_saves(app, monkeypatch, tmp_path):
-    from drawer import dialogs
-
     path = tmp_path / "schema.sql"
-    monkeypatch.setattr(
-        dialogs.QFileDialog, "getSaveFileName", lambda *args: (str(path), "Script SQL (*.sql)")
-    )
+
+    def export_file(extension, writer, parent):
+        assert extension == "sql" and isinstance(parent, SqlPreviewDialog)
+        writer(path)
+        return path
+
     monkeypatch.setattr(QMessageBox, "information", lambda *args: None)
-    preview = SqlPreviewDialog(None, 'CREATE TABLE "E" ("id" INTEGER);', "sqlite")
+    preview = SqlPreviewDialog(None, 'CREATE TABLE "E" ("id" INTEGER);', "sqlite", export_file)
     preview.save_sql()
     assert path.read_text(encoding="utf-8") == preview.sql
     help_dialog = HelpDialog(None)

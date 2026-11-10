@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "drawer-studio"
-version = "1.0.8"
+version = "1.0.9"
 description = "Editor desktop di diagrammi Entità-Relazione, con esportazione SQL"
 requires-python = ">=3.11"
 dependencies = ["PySide6-Essentials==6.12.0"]

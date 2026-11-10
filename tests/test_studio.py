@@ -2,6 +2,7 @@
 import copy
 import os
 import sqlite3
+from pathlib import Path
 
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 os.environ.setdefault('XDG_CONFIG_HOME','/tmp/drawer-test-config')
@@ -641,3 +642,118 @@ def test_grid_toggle_changes_preview_but_not_exports(editor, tmp_path):
         export_diagram(editor.scene, after, kind)
         assert after.read_bytes() == path.read_bytes()
     assert editor.scene.show_grid
+
+
+def test_export_requires_successful_native_save_and_uses_erdraw_filename(editor, tmp_path, monkeypatch):
+    target = tmp_path / 'Progetto v2.erdraw'
+    image = target.with_suffix('.png')
+    editor.settings = QSettings(str(tmp_path / 'settings.ini'), QSettings.IniFormat)
+    editor.document.title = 'Titolo interno'
+    editor.commit()
+    dialogs = []
+    answers = iter(['', str(target), str(image)])
+
+    def choose(parent, title, suggested, filters):
+        dialogs.append((title, Path(suggested)))
+        if title == 'Esporta PNG':
+            assert load_document(target).title == 'Titolo interno'
+        return next(answers), ''
+
+    monkeypatch.setattr(QFileDialog, 'getSaveFileName', choose)
+    editor.export_image('png')
+    assert [title for title, _ in dialogs] == ['Salva progetto']
+    assert not editor.settings.contains('lastProjectDirectory')
+    assert not editor.settings.contains('lastExportDirectory')
+    editor.export_image('png')
+    assert dialogs[-1] == ('Esporta PNG', image)
+    assert image.is_file()
+
+
+def test_remembers_separate_project_and_export_directories_across_windows(editor, tmp_path, monkeypatch):
+    projects, exports = tmp_path / 'progetti', tmp_path / 'esportazioni'
+    projects.mkdir()
+    exports.mkdir()
+    settings = tmp_path / 'settings.ini'
+    editor.settings = QSettings(str(settings), QSettings.IniFormat)
+    choices = iter([
+        ('Salva progetto', None, projects / 'Prima.erdraw'),
+        ('Esporta SVG', projects / 'Prima.svg', exports / 'Vista.svg'),
+        ('Salva progetto', projects / 'diagramma.erdraw', projects / 'Seconda.erdraw'),
+        ('Esporta PDF', exports / 'Seconda.pdf', ''),
+        ('Esporta SQL', exports / 'Seconda.sql', exports / 'Seconda.sql'),
+    ])
+
+    def choose(parent, title, suggested, filters):
+        expected_title, expected_path, answer = next(choices)
+        assert title == expected_title
+        if expected_path:
+            assert Path(suggested) == expected_path
+        return str(answer), ''
+
+    monkeypatch.setattr(QFileDialog, 'getSaveFileName', choose)
+    assert editor.save_document()
+    editor.export_image('svg')
+    assert (exports / 'Vista.svg').is_file()
+    next_window = MainWindow(Document(nodes=[Node(name='Nuova')]), recovery=False)
+    try:
+        next_window.settings = QSettings(str(settings), QSettings.IniFormat)
+        assert next_window.save_document()
+        next_window.export_image('pdf')
+        assert not (exports / 'Seconda.pdf').exists()
+        output = next_window.export_file('sql', lambda path: path.write_text('SELECT 1;'))
+        assert output == exports / 'Seconda.sql' and output.read_text() == 'SELECT 1;'
+    finally:
+        next_window.close()
+        next_window.deleteLater()
+
+
+def test_export_of_modified_project_requires_save_or_cancel(editor, tmp_path, monkeypatch):
+    project = tmp_path / 'Persona.erdraw'
+    editor.settings = QSettings(str(tmp_path / 'settings.ini'), QSettings.IniFormat)
+    save_document(editor.document, project)
+    editor.path = project
+    editor.document.nodes[0].name = 'Cliente'
+    editor.commit()
+    outcomes = iter([QMessageBox.Cancel, QMessageBox.Save])
+    monkeypatch.setattr(QMessageBox, 'question', lambda *args: next(outcomes))
+    output = project.with_suffix('.pdf')
+
+    def choose(*args):
+        assert load_document(project).nodes[0].name == 'Cliente'
+        return str(output), ''
+
+    monkeypatch.setattr(QFileDialog, 'getSaveFileName', choose)
+    editor.export_image('pdf')
+    assert not output.exists() and editor.dirty
+    editor.export_image('pdf')
+    assert output.exists() and not editor.dirty
+
+
+def test_failed_writes_do_not_change_remembered_directories(editor, tmp_path, monkeypatch):
+    old = tmp_path / 'precedente'
+    old.mkdir()
+    editor.settings = QSettings(str(tmp_path / 'settings.ini'), QSettings.IniFormat)
+    editor.settings.setValue('lastProjectDirectory', str(old))
+    editor.settings.setValue('lastExportDirectory', str(old))
+    errors = []
+    monkeypatch.setattr(editor, 'show_error', lambda title, error: errors.append(title))
+    project = tmp_path / 'Prima.erdraw'
+    calls = []
+
+    def choose(parent, title, *args):
+        calls.append(title)
+        return str(project if title == 'Salva progetto' else tmp_path / 'Prima.png'), ''
+
+    def fail(*args):
+        raise OSError('Disco non scrivibile')
+
+    monkeypatch.setattr(QFileDialog, 'getSaveFileName', choose)
+    with monkeypatch.context() as failure:
+        failure.setattr('drawer.window.save_document', fail)
+        editor.export_image('png')
+        assert calls == ['Salva progetto']
+        assert editor.settings.value('lastProjectDirectory') == str(old)
+    assert editor.save_document()
+    assert editor.export_file('png', fail) is None
+    assert errors == ['Salvataggio non riuscito', 'Esportazione non riuscita']
+    assert editor.settings.value('lastExportDirectory') == str(old)

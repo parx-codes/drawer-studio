@@ -761,42 +761,95 @@ class MainWindow(QMainWindow):
         if self.confirm_discard():
             self.replace_document(exercise.starter())
 
-    def save_document(self,save_as=False):
-        # QAction passa un booleano: soltanto il comando dedicato forza Salva con nome.
-        path=self.path
-        if save_as or not path:
-            title = self.document.title
-            suggested = 'diagramma' if title == DEFAULT_TITLE else title.replace('/', '_').replace('\\', '_')
-            chosen,_=QFileDialog.getSaveFileName(self,'Salva progetto',str(path or (suggested + '.erdraw')),'Diagramma DrawER (*.erdraw)')
-            if not chosen:return False
-            path=Path(chosen)
-            if path.suffix.lower()!='.erdraw':path=path.with_suffix('.erdraw')
+    def last_directory(self, key, fallback):
+        value = self.settings.value(key, '', type=str)
+        return Path(value) if value and Path(value).is_dir() else fallback
+
+    def remember_directory(self, key, path):
+        self.settings.setValue(key, str(path.absolute().parent))
+        self.settings.sync()
+
+    def save_document(self, save_as=False, *, parent=None):
+        # I progetti JSON importati vengono salvati come nuovi file .erdraw.
+        path = self.path
+        native_path = path is not None and path.suffix.lower() == '.erdraw'
+        if save_as or not native_path:
+            if native_path:
+                suggested = path
+            else:
+                title = self.document.title
+                name = 'diagramma' if title == DEFAULT_TITLE else title.replace('/', '_').replace('\\', '_')
+                fallback = path.absolute().parent if path else Path.home()
+                suggested = self.last_directory('lastProjectDirectory', fallback) / (name + '.erdraw')
+            chosen, _ = QFileDialog.getSaveFileName(
+                parent or self, 'Salva progetto', str(suggested), 'Diagramma DrawER (*.erdraw)')
+            if not chosen:
+                return False
+            path = Path(chosen)
+            if path.suffix.lower() != '.erdraw':
+                path = path.with_suffix('.erdraw')
         title = project_title(self.document.title, path, self.path)
-        try:save_document(replace(self.document, title=title),path)
-        except (OSError,ValueError) as error:
-            self.show_error('Salvataggio non riuscito',error);return False
+        try:
+            save_document(replace(self.document, title=title), path)
+        except (OSError, ValueError) as error:
+            self.show_error('Salvataggio non riuscito', error)
+            return False
         if title != self.document.title:
             self.history.update_filename_title(self.document.title, title)
             self.document.title = title
-        self.path=path;self.saved_signature=History.signature(self.document)
-        self.clear_recovery();self.refresh_panels()
-        self.hint_label.setText('Progetto salvato: '+str(path))
+        self.path = path
+        self.saved_signature = History.signature(self.document)
+        self.remember_directory('lastProjectDirectory', path)
+        self.clear_recovery()
+        self.refresh_panels()
+        self.hint_label.setText('Progetto salvato: ' + str(path))
         return True
 
-    def export_image(self,kind):
-        chosen,_=QFileDialog.getSaveFileName(self,'Esporta '+kind.upper(),'diagramma.'+kind,kind.upper()+' (*.'+kind+')')
-        if not chosen:return
-        path=Path(chosen)
-        if path.suffix.lower()!='.'+kind:path=path.with_suffix('.'+kind)
-        try:export_diagram(self.scene,path,kind)
-        except (OSError,ValueError) as error:self.show_error('Esportazione non riuscita',error);return
-        self.hint_label.setText('Esportato: '+str(path))
+    def save_before_export(self, parent=None):
+        path = self.path
+        if path is None or path.suffix.lower() != '.erdraw':
+            return self.save_document(parent=parent)
+        if path.is_file() and not self.dirty:
+            return True
+        answer = QMessageBox.question(
+            parent or self, 'Salva prima di esportare',
+            'Per esportare, salva prima il progetto .erdraw con le modifiche correnti.',
+            QMessageBox.Save | QMessageBox.Cancel, QMessageBox.Save)
+        return answer == QMessageBox.Save and self.save_document(parent=parent)
 
-    def preview_sql(self,dialect):
-        try:sql=generate_sql(self.document,dialect)
-        except (ValueError,SqlExportError) as error:
-            self.show_validation();self.show_error('Schema da completare',error);return
-        SqlPreviewDialog(self,sql,dialect).exec()
+    def export_file(self, extension, writer, parent=None):
+        if not self.save_before_export(parent):
+            return None
+        directory = self.last_directory('lastExportDirectory', self.path.absolute().parent)
+        suggested = directory / (self.path.stem + '.' + extension)
+        label = 'Script SQL' if extension == 'sql' else extension.upper()
+        chosen, _ = QFileDialog.getSaveFileName(
+            parent or self, 'Esporta ' + extension.upper(), str(suggested), f'{label} (*.{extension})')
+        if not chosen:
+            return None
+        path = Path(chosen)
+        if path.suffix.lower() != '.' + extension:
+            path = path.with_suffix('.' + extension)
+        try:
+            writer(path)
+        except (OSError, ValueError) as error:
+            self.show_error('Esportazione non riuscita', error)
+            return None
+        self.remember_directory('lastExportDirectory', path)
+        self.hint_label.setText('Esportato: ' + str(path))
+        return path
+
+    def export_image(self, kind):
+        self.export_file(kind, lambda path: export_diagram(self.scene, path, kind))
+
+    def preview_sql(self, dialect):
+        try:
+            sql = generate_sql(self.document, dialect)
+        except (ValueError, SqlExportError) as error:
+            self.show_validation()
+            self.show_error('Schema da completare', error)
+            return
+        SqlPreviewDialog(self, sql, dialect, self.export_file).exec()
 
     def show_error(self,title,error):
         QMessageBox.warning(self,title,str(error))

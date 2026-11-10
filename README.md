@@ -27,7 +27,7 @@ Il font predefinito del diagramma è **Computer Modern Roman** nella variante Un
 
 ## Avvio su Linux
 
-Il pacchetto portabile della versione **1.0.8** per Linux x86_64 è stato verificato su Zorin OS 18.1, basato su Ubuntu 24.04. Estrai tutto l’archivio e avvia **DrawER Studio** dalla cartella estratta, lasciando accanto all’eseguibile la sottocartella `_internal`. Il pacchetto include il runtime.
+Il pacchetto portabile della versione **1.0.9** per Linux x86_64 è stato verificato su Zorin OS 18.1, basato su Ubuntu 24.04. Estrai tutto l’archivio e avvia **DrawER Studio** dalla cartella estratta, lasciando accanto all’eseguibile la sottocartella `_internal`. Il pacchetto include il runtime.
 
 ## Avvio dai sorgenti
 
@@ -58,7 +58,11 @@ python -m pytest -q
 python tools/build.py
 ```
 
-La build usa PyInstaller e genera il pacchetto in `dist/DrawER Studio/`. Su Linux puoi installarlo con `sh tools/install_linux.sh "dist/DrawER Studio" 1.0.8` e aprirlo dal collegamento sulla Scrivania. I sorgenti di ogni rilascio sono pubblicati su `main`.
+La build usa PyInstaller e genera il pacchetto in `dist/DrawER Studio/`. Su Linux puoi installarlo con `sh tools/install_linux.sh "dist/DrawER Studio" 1.0.9` e aprirlo dal collegamento sulla Scrivania. I sorgenti di ogni rilascio sono pubblicati su `main`.
+
+## Salvataggio ed esportazione
+
+Salva il progetto in formato `.erdraw` prima di esportare. Il file PNG, SVG, PDF o SQL prende come nome proposto quello del progetto salvato. L’app ricorda separatamente la cartella dell’ultimo salvataggio e quella dell’ultima esportazione riuscita.
 
 ## Esportazione SQL
 

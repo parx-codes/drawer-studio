@@ -7,13 +7,12 @@ La validazione di dominio e la generazione SQL restano nei rispettivi moduli.
 from __future__ import annotations
 
 from copy import deepcopy
-from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFontDatabase
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox,
-    QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+    QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QTextBrowser,
     QVBoxLayout, QWidget,
 )
@@ -469,11 +468,12 @@ def create_relationship(
 class SqlPreviewDialog(QDialog):
     """Anteprima SQL con copia ed esportazione esplicite."""
 
-    def __init__(self, parent: QWidget | None, sql: str, dialect: str):
+    def __init__(self, parent: QWidget | None, sql: str, dialect: str, export_file):
         super().__init__(parent)
         self.setWindowTitle(f"SQL preliminare · {dialect}")
         self.resize(900, 670)
         self.sql = sql
+        self.export_file = export_file
         layout = QVBoxLayout(self)
         layout.addWidget(_hint(
             "DDL generato dal modello ER. Controlla nomi, tipi e regole di dominio "
@@ -499,20 +499,9 @@ class SqlPreviewDialog(QDialog):
         layout.addLayout(actions)
 
     def save_sql(self) -> None:
-        filename, _ = QFileDialog.getSaveFileName(
-            self, "Esporta SQL", "schema.sql", "Script SQL (*.sql)"
-        )
-        if not filename:
-            return
-        path = Path(filename)
-        if not path.suffix:
-            path = path.with_suffix(".sql")
-        try:
-            path.write_text(self.sql, encoding="utf-8")
-        except OSError as exc:
-            QMessageBox.critical(self, "Salvataggio non riuscito", str(exc))
-            return
-        QMessageBox.information(self, "SQL esportato", f"Script salvato in:\n{path}")
+        path = self.export_file('sql', lambda path: path.write_text(self.sql, encoding='utf-8'), self)
+        if path:
+            QMessageBox.information(self, "SQL esportato", f"Script salvato in:\n{path}")
 
 
 class HelpDialog(QDialog):
@@ -618,7 +607,10 @@ class HelpDialog(QDialog):
         <p>Il formato <b>.erdraw</b> conserva il progetto modificabile. Puoi aprire
         anche i progetti JSON della versione web. Il PNG ha sfondo bianco e segue
         i bordi del contenuto. SVG preserva la qualità vettoriale.
-        SQL è disponibile per SQLite e PostgreSQL.</p>
+        SQL è disponibile per SQLite e PostgreSQL. Prima di esportare un file,
+        salva il progetto e le modifiche correnti in formato .erdraw. DrawER Studio
+        propone il nome del progetto e ricorda separatamente le cartelle dell’ultimo
+        salvataggio e dell’ultima esportazione riuscita.</p>
         <h2>Guida didattica ed esercizi</h2>
         <p>Da <b>Aiuto → Guida didattica</b> puoi riprendere il percorso
         introduttivo e provarne i passaggi sul foglio. In <b>Aiuto → Esercizi

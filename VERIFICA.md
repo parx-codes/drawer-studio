@@ -1,12 +1,15 @@
-# Verifica di DrawER Studio 1.0.8
+# Verifica di DrawER Studio 1.0.9
 
 Data: 10 novembre 2026. Ambiente: Zorin OS 18.1 (base Ubuntu 24.04), Linux x86_64,
 glibc 2.39, Python 3.12.3 e PySide6/Qt 6.12.0.
 
 ## Risultati
 
-- **189 test automatici superati**, inclusi dominio, dialoghi, rendering,
+- **193 test automatici superati**, inclusi dominio, dialoghi, rendering,
   navigazione, note, routing e nuovi flussi interattivi Studio.
+- Verificati il salvataggio .erdraw obbligatorio prima dell’esportazione,
+  il nome proposto dal file e il ricordo separato delle cartelle tra le sessioni.
+  Annullamenti e scritture fallite lasciano invariate le cartelle ricordate.
 - Verificato il trascinamento di una relazione con i suoi attributi,
   l’aggiornamento del collegamento all’entità e l’annullamento.
 - Verificato lo spostamento di entità, attributi e componenti multivalore
