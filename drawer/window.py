@@ -64,6 +64,7 @@ class MainWindow(QMainWindow):
         self.resize(1440,900)
         self.scene = DiagramScene(self.document, self)
         self.scene.show_grid = self.settings.value("showGrid", False, type=bool)
+        self.scene.smart_alignment = self.settings.value("smartAlignment", True, type=bool)
         self.view = DiagramView(self.scene, self)
         self.actions, self.mode_buttons = {}, {}
         self._build_actions()
@@ -143,6 +144,8 @@ class MainWindow(QMainWindow):
         self.action('about','Informazioni su DrawER Studio…',self.show_about)
         self.action('theme','Tema scuro',self.toggle_theme,checkable=True)
         self.action('grid','Griglia',self.toggle_grid,checkable=True).setChecked(self.scene.show_grid)
+        self.action('smartalign','Allineamento intelligente',self.toggle_smart_alignment,
+                    checkable=True).setChecked(self.scene.smart_alignment)
         self.action('snap','Aggancia alla griglia',self.toggle_snap,checkable=True).setChecked(True)
         self.action('layout','Disponi automaticamente',self.auto_layout)
         self.action('alignleft','Allinea a sinistra',lambda:self.align('left'))
@@ -282,7 +285,7 @@ class MainWindow(QMainWindow):
     def _build_menu_toolbar(self):
         for label,keys in [('File',['new','open','save','saveas','title','png','svg','pdf','sqlite','postgresql']),
                            ('Modifica',['undo','redo','cut','copy','paste','all','edit','delete']),
-                           ('Diagramma',['wizard','validate','layout','alignleft','aligntop','aligncentery','aligncenterx','snap']),
+                           ('Diagramma',['wizard','validate','layout','alignleft','aligntop','aligncentery','aligncenterx','smartalign','snap']),
                            ('Visualizza',['fit','zoomin','zoomout','grid','theme']),('Aiuto',['help','tutorial','about'])]:
             menu=self.menuBar().addMenu(label)
             for key in keys:
@@ -345,6 +348,10 @@ class MainWindow(QMainWindow):
         self.scene.show_grid = self.actions['grid'].isChecked()
         self.settings.setValue("showGrid", self.scene.show_grid)
         self.scene.update()
+
+    def toggle_smart_alignment(self):
+        self.scene.smart_alignment = self.actions['smartalign'].isChecked()
+        self.settings.setValue("smartAlignment", self.scene.smart_alignment)
 
     def toggle_snap(self):
         self.scene.snap=self.actions['snap'].isChecked()
@@ -437,7 +444,7 @@ class MainWindow(QMainWindow):
         else:
             self.inspector_type.setText('SELEZIONE MULTIPLA' if ids else 'NESSUNA SELEZIONE')
             self.inspector_name.setText(f'{len(ids)} elementi' if ids else 'Inizia con un’entità')
-            self.inspector_info.setText('Maiusc+sinistro sposta gli elementi selezionati.' if ids else 'Trascina col sinistro per selezionare un’area e col destro per spostare la vista. Le freccette permettono di collegare gli oggetti direttamente sul foglio.')
+            self.inspector_info.setText('Trascina le entità o usa Maiusc+sinistro per spostare gli elementi selezionati.' if ids else 'Trascina col sinistro per selezionare un’area e col destro per spostare la vista. Le freccette permettono di collegare gli oggetti direttamente sul foglio.')
 
     def commit(self,rebuild=False,selected=None):
         if rebuild:

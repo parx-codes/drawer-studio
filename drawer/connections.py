@@ -3,10 +3,11 @@ import copy
 import math
 
 from PySide6.QtCore import Qt, QPointF, QRectF
-from PySide6.QtGui import (QColor,QPen,QPainterPath,QPainterPathStroker,QFont,
+from PySide6.QtGui import (QColor,QPen,QPainterPath,QPainterPathStroker,
                           QFontMetricsF,QPolygonF)
 from PySide6.QtWidgets import QGraphicsPathItem,QGraphicsItem
 
+from .typography import diagram_font
 from .model import PORTS
 from .geometry import NORMALS, nearest_port,adapt_manual,serialized
 from .routing import route
@@ -187,7 +188,7 @@ class EdgeItem(QGraphicsPathItem):
                 if item.node.kind=='entity' and not inheritance:
                     delta=q-p;length=math.hypot(delta.x(),delta.y()) or 1
                     point=p+delta*(32/length);text='('+card+')'
-                    width=QFontMetricsF(QFont('Sans Serif',9)).horizontalAdvance(text)
+                    width=QFontMetricsF(diagram_font(9)).horizontalAdvance(text)
                     offset=QPointF(-width/2,-22) if abs(delta.x())>abs(delta.y()) else QPointF(8,-8)
                     self.add_label(key,text,point+offset)
             if self.link.role:self.add_label('role',self.link.role,path.pointAtPercent(.5)+QPointF(7,7))
@@ -199,7 +200,7 @@ class EdgeItem(QGraphicsPathItem):
         item = self._labels_by_key.get(key)
         if item is None:
             item = EdgeLabel(self, key)
-            item.setFont(QFont('Sans Serif',9))
+            item.setFont(diagram_font(9))
             self._labels_by_key[key] = item
             self.editor.addItem(item)
         item.setText(text)

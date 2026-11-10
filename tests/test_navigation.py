@@ -1,4 +1,4 @@
-"""Gesti reali della v1.0.1: sinistro naviga, destro seleziona."""
+"""Gesti reali del foglio: selezione, spostamento, pan e allineamento."""
 import os
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -101,12 +101,58 @@ def test_left_drag_selects_area_without_moving_nodes(editor, additive):
     assert not editor.dirty
 
 
-def test_left_drag_starting_on_node_never_moves_it(editor):
-    original = editor.document.to_dict()
+def test_left_drag_moves_entity_with_nested_attributes_once(editor):
+    entity, key = editor.document.nodes[:2]
+    group = Node(kind='multivalue', name='Recapiti', x=180, y=120, parent_id=entity.id)
+    part = Node(kind='attribute', name='Telefono', x=310, y=90, parent_id=group.id)
+    editor.document.nodes.extend((group, part))
+    editor.commit(rebuild=True, selected=[entity.id, key.id, group.id])
+    tracked = (entity, key, group, part)
+    before = {node.id: QPointF(node.x, node.y) for node in tracked}
     start = point(editor, 0)
     drag(editor, Qt.LeftButton, start, start + QPoint(80, 70))
-    assert editor.document.to_dict() == original
-    assert editor.document.nodes[0].id in editor.scene.selected_ids()
+    delta = QPointF(entity.x, entity.y) - before[entity.id]
+    assert not delta.isNull()
+    for node in tracked:
+        assert QPointF(node.x, node.y) == before[node.id] + delta
+    editor.undo()
+    for node in tracked:
+        restored = editor.document.node(node.id)
+        assert QPointF(restored.x, restored.y) == before[node.id]
+
+
+def test_smart_alignment_snaps_visible_guide_and_clears_on_release(editor):
+    scene = editor.scene
+    entity, _, target = editor.document.nodes
+    target.y = 193
+    editor.commit(rebuild=True)
+    scene.snap = False
+    start = point(editor, 0)
+    end = editor.view.mapFromScene(QPointF(155, 230))
+    viewport = editor.view.viewport()
+    QTest.mousePress(viewport, Qt.LeftButton, Qt.NoModifier, start)
+    QTest.mouseMove(viewport, end, delay=15)
+    assert entity.y == target.y
+    assert scene.alignment_guides == (None, 233)
+    QTest.mouseRelease(viewport, Qt.LeftButton, Qt.NoModifier, end)
+    assert scene.alignment_guides == (None, None)
+    editor.undo()
+    assert editor.document.node(entity.id).y == 0
+
+
+def test_escape_cancels_smart_drag_and_clears_guide(editor):
+    entity = editor.document.nodes[0]
+    before = editor.document.to_dict()
+    start = point(editor, 0)
+    end = start + QPoint(75, 70)
+    viewport = editor.view.viewport()
+    QTest.mousePress(viewport, Qt.LeftButton, Qt.NoModifier, start)
+    QTest.mouseMove(viewport, end, delay=15)
+    assert entity.x != 0
+    QTest.keyClick(editor.view, Qt.Key_Escape)
+    QTest.mouseRelease(viewport, Qt.LeftButton, Qt.NoModifier, end)
+    assert editor.document.to_dict() == before
+    assert editor.scene.alignment_guides == (None, None)
     assert not editor.history.can_undo
 
 

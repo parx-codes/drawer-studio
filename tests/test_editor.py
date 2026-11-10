@@ -266,9 +266,8 @@ def test_long_primary_key_name_has_room_for_full_bold_text(app):
                is_pk=True)
     scene = DiagramScene(Document(nodes=[key]))
     item = scene.node_items[key.id]
-    font = QFont("Sans Serif", 10)
-    font.setBold(True)
-    font.setUnderline(True)
+    font = item.attribute_name.font()
+    assert font.family() == "CMU Serif" and font.bold() and font.underline()
     width = QFontMetricsF(font).horizontalAdvance(key.name)
     # The attribute label begins 14 scene units to the right of its circle.
     assert item.attribute_name.mapRectToParent(item.attribute_name.boundingRect()).right() >= width + 14

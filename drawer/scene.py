@@ -2,9 +2,10 @@
 import math
 
 from PySide6.QtCore import Qt, Signal, QPointF, QLineF, QRectF, QTimer, QRect, QEvent
-from PySide6.QtGui import QColor, QPen, QBrush, QPainter, QPainterPath, QFont, QPolygonF, QTransform
+from PySide6.QtGui import QColor, QPen, QBrush, QPainter, QPainterPath, QPolygonF, QTransform
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsObject, QGraphicsPathItem, QGraphicsItem, QGraphicsView, QMenu, QApplication, QRubberBand
 
+from .typography import diagram_font
 from .routing import route
 from .richtext import create_note_document
 from .geometry import port_point, nearest_port, NORMALS, adapt_manual, serialized
@@ -13,6 +14,7 @@ from .controls import AttributeName, PortArrow, ResizeHandle
 from .connections import EdgeItem
 
 GRID = 20
+ALIGNABLE_KINDS = {'entity', 'relation', 'multivalue', 'text'}
 NAMES = {'entity': 'Entità', 'relation': 'Relazione', 'attribute': 'Attributo',
          'multivalue': 'Multivalore', 'isa': 'Generalizzazione ISA', 'text': 'Nota'}
 
@@ -28,7 +30,7 @@ class NodeItem(QGraphicsObject):
         self.resize_handles = []
         self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemSendsGeometryChanges)
         self.setPos(node.x, node.y)
-        self.setZValue(2)
+        self.setZValue(4 if node.kind == "attribute" else 2)
         self.setToolTip(f'{NAMES[node.kind]} · {node.name}\nDoppio clic per modificare' + ('\n' + node.notes if node.notes else ''))
         self.port_arrows = []
         if node.kind in ('entity','relation','multivalue','isa'):
@@ -116,7 +118,7 @@ class NodeItem(QGraphicsObject):
             pen.setStyle(Qt.DashLine)
         painter.setPen(pen)
         painter.setBrush(fill)
-        font = QFont('Sans Serif', 10)
+        font = diagram_font()
         font.setBold(n.kind == 'entity' or n.is_pk)
         font.setUnderline(n.is_pk)
         painter.setFont(font)
@@ -183,25 +185,13 @@ class NodeItem(QGraphicsObject):
         if editor is None or editor.loading:
             return value
         if change == QGraphicsItem.ItemPositionChange:
-            if editor.snap and not editor.following_parent and not self._resizing:
+            if editor.snap and not (editor.following_parent or editor.moving_group or self._resizing):
                 value = QPointF(round(value.x()/GRID)*GRID, round(value.y()/GRID)*GRID)
-                if self.node.kind in ('entity','relation','multivalue','isa'):
-                    center = value+self.body_rect().center()
-                    others = [item for item in editor.node_items.values()
-                              if item is not self and item.node.kind in ('entity','relation','multivalue')
-                              and not item.isSelected()]
-                    for axis in ('x','y'):
-                        candidates = [getattr(item.mapToScene(item.body_rect().center()),axis)() for item in others]
-                        if candidates:
-                            nearest = min(candidates,key=lambda coordinate:abs(coordinate-getattr(center,axis)()))
-                            if abs(nearest-getattr(center,axis)()) <= 10:
-                                if axis=='x': value.setX(nearest-self.body_rect().center().x())
-                                else: value.setY(nearest-self.body_rect().center().y())
             return value
         if change == QGraphicsItem.ItemPositionHasChanged:
             old = QPointF(self.node.x, self.node.y)
             self.node.x, self.node.y = self.pos().x(), self.pos().y()
-            if self._resizing:
+            if self._resizing or editor.moving_group:
                 return value
             delta = self.pos() - old
             # Un attributo resta solidale al proprietario, salvo selezione esplicita.
@@ -239,6 +229,9 @@ class DiagramScene(QGraphicsScene):
         self.dark, self.snap, self.loading, self.exporting = False, True, False, False
         self.transparent_background = False
         self.show_grid = False
+        self.smart_alignment = True
+        self.alignment_guides = (None, None)
+        self.moving_group = False
         self.hovered_port_node = None
         self.following_parent = 0
         self.mode, self.connect_source = 'select', None
@@ -253,6 +246,7 @@ class DiagramScene(QGraphicsScene):
 
     def rebuild(self, selected=None):
         self.loading = True
+        self.set_alignment_guides((None, None))
         self.cancel_direct_connection()
         self.set_port_hover(None)
         self.active_handle = None
@@ -316,6 +310,78 @@ class DiagramScene(QGraphicsScene):
                         'attribute':'Clicca l’entità, la relazione o il multivalore proprietario dell’attributo.',
                         'multivalue':'Clicca l’entità proprietaria dell’attributo multivalore.',
                         'isa':'Clicca l’entità supertipo; poi collega ISA ai sottotipi.'}.get(mode, 'Clicca sul foglio per creare: '+NAMES.get(mode,mode)))
+
+    def drag_positions(self):
+        """Cattura le posizioni della selezione e di tutti i suoi discendenti."""
+        children = {}
+        for item in self.node_items.values():
+            children.setdefault(item.node.parent_id, []).append(item)
+        pending = [item for item in self.selectedItems() if isinstance(item, NodeItem)]
+        positions = {}
+        while pending:
+            item = pending.pop()
+            if item.object_id not in positions:
+                positions[item.object_id] = (item.node.x, item.node.y)
+                pending.extend(children.get(item.object_id, ()))
+        return positions
+
+    def align_drag(self, primary, positions, delta, tolerance):
+        original = QPointF(*positions[primary.object_id])
+        proposed = original + delta
+        coordinates = [proposed.x(), proposed.y()]
+        guides = [None, None]
+        if self.smart_alignment and primary.node.kind in ALIGNABLE_KINDS:
+            rect = primary.body_rect().translated(proposed)
+            refs = [item.body_rect().translated(item.pos()) for identifier, item in self.node_items.items()
+                    if identifier not in positions and item.node.kind in ALIGNABLE_KINDS]
+            for axis, features in enumerate((
+                lambda r: (r.center().x(), r.left(), r.right()),
+                lambda r: (r.center().y(), r.top(), r.bottom()),
+            )):
+                own = features(rect)
+                best = min(((abs(other - here), index, other - here, other)
+                            for target in refs
+                            for index, (here, other) in enumerate(zip(own, features(target)))),
+                           default=None)
+                if best and best[0] <= tolerance:
+                    coordinates[axis] += best[2]
+                    guides[axis] = best[3]
+        if self.snap:
+            for axis in range(2):
+                if guides[axis] is None:
+                    coordinates[axis] = round(coordinates[axis] / GRID) * GRID
+        self.set_alignment_guides(tuple(guides))
+        return QPointF(*coordinates) - original
+
+    def set_alignment_guides(self, guides):
+        if self.alignment_guides != guides:
+            self.alignment_guides = guides
+            self.update()
+
+    def place_drag_group(self, positions, delta):
+        self.moving_group = True
+        try:
+            for identifier, position in positions.items():
+                item = self.node_items.get(identifier)
+                if item:
+                    item.setPos(QPointF(*position) + delta)
+                    if delta.isNull():
+                        item.node.x, item.node.y = position
+        finally:
+            self.moving_group = False
+        self.request_edges_refresh()
+
+    def drawForeground(self, painter, rect):
+        if self.exporting:
+            return
+        x, y = self.alignment_guides
+        if x is None and y is None:
+            return
+        painter.setPen(QPen(QColor('#26b9a3' if self.dark else '#087f73'), 0, Qt.DashLine))
+        if x is not None:
+            painter.drawLine(QLineF(x, rect.top(), x, rect.bottom()))
+        if y is not None:
+            painter.drawLine(QLineF(rect.left(), y, rect.right(), y))
 
     def drawBackground(self, painter, rect):
         if self.transparent_background:
@@ -466,7 +532,8 @@ class DiagramView(QGraphicsView):
         self._selection_dragging = False
         self._selection_additive = False
         self._selection_baseline = []
-        self._left_item_drag = False
+        self._node_drag = None
+        self._node_drag_started = False
         self._rubber_band = QRubberBand(QRubberBand.Rectangle, self.viewport())
         self._rubber_band.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self._rubber_band.setFocusPolicy(Qt.NoFocus)
@@ -570,6 +637,60 @@ class DiagramView(QGraphicsView):
         self._pan_button = None
         self._normal_cursor()
 
+    def _begin_node_drag(self, item, point):
+        scene = self.scene()
+        if not item.isSelected():
+            scene.clearSelection()
+            item.setSelected(True)
+        positions = scene.drag_positions()
+        routes = [(edge, edge.geometry_snapshot()) for edge in scene.edge_items
+                  if edge.manual_points and (edge.source_item.object_id in positions
+                                             or edge.target_item.object_id in positions)]
+        self._node_drag = item.object_id, point, positions, scene.document, routes
+        self._node_drag_started = False
+
+    def _update_node_drag(self, point):
+        identifier, start, positions, document, routes = self._node_drag
+        scene = self.scene()
+        item = scene.node_items.get(identifier)
+        if document is not scene.document or not item:
+            self._finish_node_drag()
+            return
+        if not self._node_drag_started:
+            if (point - start).manhattanLength() < QApplication.startDragDistance():
+                return
+            self._node_drag_started = True
+        delta = self.mapToScene(point) - self.mapToScene(start)
+        tolerance = min(24, 8 / self.transform().m11())
+        if (point - start).manhattanLength() < 2:
+            scene.set_alignment_guides((None, None))
+        else:
+            delta = scene.align_drag(item, positions, delta, tolerance)
+        self._restore_drag_routes(routes)
+        scene.place_drag_group(positions, delta)
+
+    def _restore_drag_routes(self, routes):
+        for edge, geometry in routes:
+            if edge.scene() is self.scene():
+                edge.restore_geometry(geometry)
+
+    def _finish_node_drag(self, cancel=False):
+        scene = self.scene()
+        if scene is None or self._node_drag is None:
+            return
+        _, _, positions, document, routes = self._node_drag
+        changed = self._node_drag_started and document is scene.document
+        self._node_drag = None
+        self._node_drag_started = False
+        scene.set_alignment_guides((None, None))
+        if changed:
+            if cancel:
+                self._restore_drag_routes(routes)
+                scene.place_drag_group(positions, QPointF())
+                scene.refresh_edges()
+            else:
+                scene.changed_by_user.emit()
+
     def mousePressEvent(self,event):
         button, modifiers = event.button(), event.modifiers()
         if button == Qt.RightButton and modifiers & Qt.ShiftModifier:
@@ -578,7 +699,7 @@ class DiagramView(QGraphicsView):
             event.accept()
             return
         if button in (Qt.RightButton, Qt.MiddleButton) or (self._space and button == Qt.LeftButton):
-            if not self._panning and self._selection_origin is None and not self.scene().mouseGrabberItem():
+            if not self._panning and self._selection_origin is None and self._node_drag is None and not self.scene().mouseGrabberItem():
                 self._begin_pan(event)
             event.accept()
             return
@@ -587,18 +708,21 @@ class DiagramView(QGraphicsView):
             return
         if button == Qt.LeftButton and self.scene().mode == 'select':
             point = event.position().toPoint()
-            if any(getattr(item, 'interactive_handle', False)
-                   and not (isinstance(item, AttributeName) and modifiers & Qt.ControlModifier)
-                   for item in self.items(point)):
-                super().mousePressEvent(event)
-                return
+            for graphic in self.items(point):
+                if isinstance(graphic, AttributeName) and modifiers & Qt.ControlModifier:
+                    break
+                if getattr(graphic, 'interactive_handle', False):
+                    super().mousePressEvent(event)
+                    return
+                if graphic.flags() & QGraphicsItem.ItemIsSelectable:
+                    break
             item = self._selectable_at(point)
             move_directly = (isinstance(item, NodeItem)
-                              and item.node.kind in ('attribute', 'multivalue', 'text')
+                              and item.node.kind in ('entity', 'attribute', 'multivalue', 'text')
                               and modifiers == Qt.NoModifier)
             if isinstance(item, NodeItem) and (move_directly or modifiers & Qt.ShiftModifier):
-                self._left_item_drag = True
-                super().mousePressEvent(event)
+                self._begin_node_drag(item, point)
+                event.accept()
                 return
             self._selection_origin = point
             self._selection_additive = bool(modifiers & Qt.ControlModifier)
@@ -616,6 +740,9 @@ class DiagramView(QGraphicsView):
             self.horizontalScrollBar().setValue(self.horizontalScrollBar().value()-round(delta.x()))
             self.verticalScrollBar().setValue(self.verticalScrollBar().value()-round(delta.y()))
             event.accept()
+        elif self._node_drag is not None:
+            self._update_node_drag(event.position().toPoint())
+            event.accept()
         elif self._selection_origin is not None:
             position = event.position().toPoint()
             if (position-self._selection_origin).manhattanLength() >= QApplication.startDragDistance():
@@ -629,6 +756,12 @@ class DiagramView(QGraphicsView):
     def mouseReleaseEvent(self,event):
         if self._panning and event.button() == self._pan_button:
             self._reset_gesture()
+            self._update_port_hover(event.position().toPoint())
+            event.accept()
+            return
+        if event.button() == Qt.LeftButton and self._node_drag is not None:
+            self._update_node_drag(event.position().toPoint())
+            self._finish_node_drag()
             self._update_port_hover(event.position().toPoint())
             event.accept()
             return
@@ -649,11 +782,11 @@ class DiagramView(QGraphicsView):
             return
         super().mouseReleaseEvent(event)
         if event.button() == Qt.LeftButton:
-            self._left_item_drag = False
             self._update_port_hover(event.position().toPoint())
 
     def mouseDoubleClickEvent(self,event):
         if event.button() == Qt.LeftButton and self.scene().mode == 'select':
+            self._finish_node_drag()
             self._reset_gesture()
             item = self._selectable_at(event.position().toPoint())
             if item and getattr(item, 'object_id', None):
@@ -680,6 +813,7 @@ class DiagramView(QGraphicsView):
             event.accept()
         elif event.key()==Qt.Key_Escape:
             self._cancel_editor_interaction()
+            self._finish_node_drag(cancel=True)
             self._reset_gesture(restore_selection=True)
             self.escape_pressed.emit()
             event.accept()
@@ -699,9 +833,7 @@ class DiagramView(QGraphicsView):
 
     def focusOutEvent(self,event):
         self._cancel_editor_interaction()
-        if self._left_item_drag:
-            self.scene().changed_by_user.emit()
-            self._left_item_drag = False
+        self._finish_node_drag()
         self._space = False
         self._reset_gesture(restore_selection=True)
         super().focusOutEvent(event)
@@ -709,9 +841,7 @@ class DiagramView(QGraphicsView):
     def event(self,event):
         if event.type() == QEvent.WindowDeactivate and hasattr(self, '_rubber_band'):
             self._cancel_editor_interaction()
-            if self._left_item_drag:
-                self.scene().changed_by_user.emit()
-                self._left_item_drag = False
+            self._finish_node_drag()
             self._space = False
             self._reset_gesture(restore_selection=True)
         return super().event(event)

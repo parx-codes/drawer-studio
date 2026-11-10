@@ -17,3 +17,10 @@ licenza al codice originale DrawER né ne attestano la titolarità.
 
 I sorgenti originali dell'utente non sono stati modificati. Il titolare del progetto
 può scegliere la licenza del proprio codice prima della pubblicazione.
+
+## Computer Modern Unicode
+
+Le quattro varianti Roman di CMU Serif sono distribuite con la SIL Open Font
+License 1.1. Il testo della licenza e gli avvisi originali sono in
+[drawer/fonts/OFL.txt](drawer/fonts/OFL.txt).
+Il pacchetto originale è [cm-unicode su CTAN](https://ctan.org/pkg/cm-unicode).

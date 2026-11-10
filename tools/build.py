@@ -17,6 +17,7 @@ def main():
     command=[sys.executable,'-m','PyInstaller','--noconfirm','--clean','--name',APP_NAME,
              '--windowed','--onefile' if args.onefile else '--onedir',
              '--add-data',str(data)+os.pathsep+'examples',
+             '--add-data',str(root/'drawer'/'fonts')+os.pathsep+'fonts',
              '--add-data',str(root/'README.md')+os.pathsep+'.',
              '--add-data',str(root/'THIRD_PARTY_NOTICES.md')+os.pathsep+'.',
              '--exclude-module','PySide6.QtWebEngineCore','--exclude-module','PySide6.QtWebEngineWidgets',

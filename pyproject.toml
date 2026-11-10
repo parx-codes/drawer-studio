@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "drawer-studio"
-version = "1.0.6"
+version = "1.0.7"
 description = "Editor desktop di diagrammi Entità-Relazione, con esportazione SQL"
 requires-python = ">=3.11"
 dependencies = ["PySide6-Essentials==6.12.0"]
@@ -17,7 +17,7 @@ drawer-studio = "drawer.app:main"
 include = ["drawer*"]
 
 [tool.setuptools.package-data]
-drawer = ["examples/*.erdraw"]
+drawer = ["examples/*.erdraw", "fonts/*.otf", "fonts/OFL.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

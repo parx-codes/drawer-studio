@@ -3,9 +3,10 @@ import math
 from weakref import ref
 
 from PySide6.QtCore import Qt, QPointF, QRectF
-from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPen, QPolygonF
+from PySide6.QtGui import QColor, QFontMetricsF, QPen, QPolygonF
 from PySide6.QtWidgets import QGraphicsObject, QGraphicsSimpleTextItem
 
+from .typography import diagram_font
 from .geometry import NORMALS, nearest_port, shift_corner, serialized
 
 
@@ -226,7 +227,7 @@ class AttributeName(QGraphicsSimpleTextItem):
 
     def __init__(self, node_item):
         super().__init__(node_item.node.name, node_item)
-        font = QFont('Sans Serif', 10)
+        font = diagram_font()
         font.setBold(node_item.node.is_pk)
         font.setUnderline(node_item.node.is_pk)
         self.setFont(font)

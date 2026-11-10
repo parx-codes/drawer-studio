@@ -552,8 +552,12 @@ class HelpDialog(QDialog):
         <ul>
           <li>Fai clic con il <b>sinistro</b> per selezionare un elemento o
           trascina per selezionare un'area. Trascina un attributo o una nota per spostarli. Tieni premuto <b>Ctrl</b> per estendere la selezione.</li>
-          <li>Trascina con il <b>destro</b> per spostare la vista. Usa <b>Maiusc+sinistro</b>
-          per spostare le figure e trascina un angolo di una figura selezionata per ridimensionarla.</li>
+          <li>Trascina con il <b>destro</b> per spostare la vista. Trascina un’entità
+          col sinistro per spostarla insieme ai suoi attributi. Puoi usare
+          <b>Maiusc+sinistro</b> per spostare qualsiasi figura selezionata.</li>
+          <li>Le guide di allineamento agganciano bordi e centri durante lo spostamento.
+          Puoi disattivarle da <b>Diagramma → Allineamento intelligente</b>.
+          Trascina un angolo di una figura selezionata per ridimensionarla.</li>
           <li><b>Doppio clic sinistro</b> apre le proprietà; <b>Maiusc+destro</b>
           apre il menu contestuale.</li>
           <li>Ruota la rotella per lo zoom. Trascina con il tasto centrale o con

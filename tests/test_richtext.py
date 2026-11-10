@@ -170,7 +170,8 @@ def test_rich_paste_is_local_text_without_embedded_resources(editor):
 def test_default_ink_is_used_for_plain_and_rich_notes(app,html):
     note=SimpleNamespace(name='Testo predefinito',text_html=html)
     document=create_note_document(note,600,QColor('#e60000'))
-    assert colored_pixels(render(document),'#e60000')>30
+    assert document.defaultFont().family() == 'CMU Serif'
+    assert colored_pixels(render(document),'#e60000')>8
 
 
 def test_cancel_formatted_note_never_mutates_original(app,monkeypatch):

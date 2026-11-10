@@ -1,5 +1,11 @@
 # Novità di DrawER Studio
 
+## 1.0.7
+
+- Trascinamento diretto delle entità insieme a tutti i loro attributi.
+- Guide intelligenti per allineare bordi e centri durante lo spostamento.
+- Computer Modern Roman (CMU Serif) incluso come font predefinito del diagramma.
+
 ## 1.0.6
 
 - Il nome dell’attributo si trascina attorno al pallino.

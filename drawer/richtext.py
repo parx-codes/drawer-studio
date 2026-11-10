@@ -5,6 +5,7 @@ from PySide6.QtGui import (QAction, QActionGroup, QColor, QFont, QTextDocument,
 from PySide6.QtWidgets import (QWidget, QTextEdit, QVBoxLayout, QToolBar,
     QFontComboBox, QComboBox, QColorDialog)
 
+from .typography import diagram_font
 from .note_html import sanitize_note_html
 
 
@@ -44,7 +45,7 @@ def create_note_document(node, width: float, ink: QColor) -> QTextDocument:
     document.drawContents(painter). Il documento non possiede il painter.
     """
     document = LocalTextDocument()
-    document.setDefaultFont(QFont('Sans Serif', 10))
+    document.setDefaultFont(diagram_font())
     document.setDocumentMargin(0)
     document.setDefaultStyleSheet(f'p,li,div {{ color: {ink.name()}; }}')
     option = document.defaultTextOption()
@@ -76,8 +77,8 @@ class RichTextEditor(QWidget):
         self.text_edit = LocalTextEdit(self)
         self.text_edit.setObjectName('nodeName')
         self.text_edit.setMinimumHeight(190)
-        self.text_edit.setFont(QFont('Sans Serif', 10))
-        self.text_edit.document().setDefaultFont(QFont('Sans Serif', 10))
+        self.text_edit.setFont(diagram_font())
+        self.text_edit.document().setDefaultFont(diagram_font())
         self.toolbar = QToolBar(self)
         self.toolbar.setMovable(False)
         self.toolbar.setIconSize(QSize(16,16))
