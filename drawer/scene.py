@@ -718,7 +718,7 @@ class DiagramView(QGraphicsView):
                     break
             item = self._selectable_at(point)
             move_directly = (isinstance(item, NodeItem)
-                              and item.node.kind in ('entity', 'attribute', 'multivalue', 'text')
+                              and item.node.kind in ('entity', 'relation', 'attribute', 'multivalue', 'text')
                               and modifiers == Qt.NoModifier)
             if isinstance(item, NodeItem) and (move_directly or modifiers & Qt.ShiftModifier):
                 self._begin_node_drag(item, point)

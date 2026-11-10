@@ -11,7 +11,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from drawer.history import History
-from drawer.model import Document, Node
+from drawer.model import Document, Link, Node
 from drawer.window import MainWindow
 
 
@@ -119,6 +119,31 @@ def test_left_drag_moves_entity_with_nested_attributes_once(editor):
     for node in tracked:
         restored = editor.document.node(node.id)
         assert QPointF(restored.x, restored.y) == before[node.id]
+
+
+def test_left_drag_moves_relation_and_its_attributes_and_updates_link(editor):
+    entity = editor.document.nodes[0]
+    relation = Node(kind='relation', name='Lavora', x=250, y=40)
+    attribute = Node(kind='attribute', name='Data', x=310, y=-60, parent_id=relation.id)
+    participation = Link(entity.id, relation.id, target_port='left')
+    editor.document.nodes.extend((relation, attribute))
+    editor.document.links.append(participation)
+    editor.commit(rebuild=True)
+    editor.view.fit_diagram()
+    old_relation = QPointF(relation.x, relation.y)
+    old_attribute = QPointF(attribute.x, attribute.y)
+    edge = next(edge for edge in editor.scene.edge_items if edge.link is participation)
+    old_end = QPointF(edge.points[-1])
+    start = point(editor, editor.document.nodes.index(relation))
+    drag(editor, Qt.LeftButton, start, start + QPoint(75, 60))
+    delta = QPointF(relation.x, relation.y) - old_relation
+    assert not delta.isNull()
+    assert QPointF(attribute.x, attribute.y) == old_attribute + delta
+    assert edge.points[-1] == old_end + delta
+    assert (entity.x, entity.y) == (0, 0)
+    editor.undo()
+    restored = editor.document.node(relation.id)
+    assert QPointF(restored.x, restored.y) == old_relation
 
 
 def test_smart_alignment_snaps_visible_guide_and_clears_on_release(editor):

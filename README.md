@@ -21,13 +21,13 @@ Il progetto è stato sviluppato in **vibe coding insieme all’intelligenza arti
 - Usa **Griglia** nella barra in alto per mostrare le linee di riferimento. Restano fuori dalle esportazioni. Nelle proprietà delle note puoi scegliere uno sfondo trasparente o un colore personalizzato.
 - Gli attributi si attaccano lungo tutto il contorno del proprietario. Nelle proprietà puoi attivare la cardinalità e scegliere tra (0,1), (1,1), (0,N) e (1,N).
 
-Trascina un’entità con il sinistro per spostarla insieme a tutti i suoi attributi. Le guide intelligenti agganciano bordi e centri durante lo spostamento e si possono disattivare da **Diagramma → Allineamento intelligente**.
+Trascina un’entità o una relazione con il sinistro per spostarla insieme a tutti i suoi attributi. Le guide intelligenti agganciano bordi e centri durante lo spostamento e si possono disattivare da **Diagramma → Allineamento intelligente**.
 
 Il font predefinito del diagramma è **Computer Modern Roman** nella variante Unicode **CMU Serif**, inclusa nell’app. Gli SVG fanno riferimento al font, mentre PDF e PNG mantengono l’aspetto su altri sistemi.
 
 ## Avvio su Linux
 
-Il pacchetto portabile della versione **1.0.7** per Linux x86_64 è stato verificato su Zorin OS 18.1, basato su Ubuntu 24.04. Estrai tutto l’archivio e avvia **DrawER Studio** dalla cartella estratta, lasciando accanto all’eseguibile la sottocartella `_internal`. Il pacchetto include il runtime.
+Il pacchetto portabile della versione **1.0.8** per Linux x86_64 è stato verificato su Zorin OS 18.1, basato su Ubuntu 24.04. Estrai tutto l’archivio e avvia **DrawER Studio** dalla cartella estratta, lasciando accanto all’eseguibile la sottocartella `_internal`. Il pacchetto include il runtime.
 
 ## Avvio dai sorgenti
 
@@ -58,7 +58,7 @@ python -m pytest -q
 python tools/build.py
 ```
 
-La build usa PyInstaller e genera il pacchetto in `dist/DrawER Studio/`. Su Linux puoi installarlo con `sh tools/install_linux.sh "dist/DrawER Studio" 1.0.7` e aprirlo dal collegamento sulla Scrivania. I sorgenti di ogni rilascio sono pubblicati su `main`.
+La build usa PyInstaller e genera il pacchetto in `dist/DrawER Studio/`. Su Linux puoi installarlo con `sh tools/install_linux.sh "dist/DrawER Studio" 1.0.8` e aprirlo dal collegamento sulla Scrivania. I sorgenti di ogni rilascio sono pubblicati su `main`.
 
 ## Esportazione SQL
 

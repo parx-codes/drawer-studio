@@ -552,7 +552,7 @@ class HelpDialog(QDialog):
         <ul>
           <li>Fai clic con il <b>sinistro</b> per selezionare un elemento o
           trascina per selezionare un'area. Trascina un attributo o una nota per spostarli. Tieni premuto <b>Ctrl</b> per estendere la selezione.</li>
-          <li>Trascina con il <b>destro</b> per spostare la vista. Trascina un’entità
+          <li>Trascina con il <b>destro</b> per spostare la vista. Trascina un’entità o una relazione
           col sinistro per spostarla insieme ai suoi attributi. Puoi usare
           <b>Maiusc+sinistro</b> per spostare qualsiasi figura selezionata.</li>
           <li>Le guide di allineamento agganciano bordi e centri durante lo spostamento.

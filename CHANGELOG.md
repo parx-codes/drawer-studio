@@ -1,5 +1,9 @@
 # Novità di DrawER Studio
 
+## 1.0.8
+
+- Il trascinamento sinistro sposta le relazioni insieme ai loro attributi.
+
 ## 1.0.7
 
 - Trascinamento diretto delle entità insieme a tutti i loro attributi.

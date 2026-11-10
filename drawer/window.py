@@ -444,7 +444,7 @@ class MainWindow(QMainWindow):
         else:
             self.inspector_type.setText('SELEZIONE MULTIPLA' if ids else 'NESSUNA SELEZIONE')
             self.inspector_name.setText(f'{len(ids)} elementi' if ids else 'Inizia con un’entità')
-            self.inspector_info.setText('Trascina le entità o usa Maiusc+sinistro per spostare gli elementi selezionati.' if ids else 'Trascina col sinistro per selezionare un’area e col destro per spostare la vista. Le freccette permettono di collegare gli oggetti direttamente sul foglio.')
+            self.inspector_info.setText('Trascina entità e relazioni o usa Maiusc+sinistro per spostare gli elementi selezionati.' if ids else 'Trascina col sinistro per selezionare un’area e col destro per spostare la vista. Le freccette permettono di collegare gli oggetti direttamente sul foglio.')
 
     def commit(self,rebuild=False,selected=None):
         if rebuild:
