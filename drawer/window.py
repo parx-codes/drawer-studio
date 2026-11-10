@@ -63,6 +63,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1000,680)
         self.resize(1440,900)
         self.scene = DiagramScene(self.document, self)
+        self.scene.show_grid = self.settings.value("showGrid", False, type=bool)
         self.view = DiagramView(self.scene, self)
         self.actions, self.mode_buttons = {}, {}
         self._build_actions()
@@ -141,6 +142,7 @@ class MainWindow(QMainWindow):
         self.action('tutorial','Guida didattica…',self.show_tutorial)
         self.action('about','Informazioni su DrawER Studio…',self.show_about)
         self.action('theme','Tema scuro',self.toggle_theme,checkable=True)
+        self.action('grid','Griglia',self.toggle_grid,checkable=True).setChecked(self.scene.show_grid)
         self.action('snap','Aggancia alla griglia',self.toggle_snap,checkable=True).setChecked(True)
         self.action('layout','Disponi automaticamente',self.auto_layout)
         self.action('alignleft','Allinea a sinistra',lambda:self.align('left'))
@@ -281,7 +283,7 @@ class MainWindow(QMainWindow):
         for label,keys in [('File',['new','open','save','saveas','title','png','svg','pdf','sqlite','postgresql']),
                            ('Modifica',['undo','redo','cut','copy','paste','all','edit','delete']),
                            ('Diagramma',['wizard','validate','layout','alignleft','aligntop','aligncentery','aligncenterx','snap']),
-                           ('Visualizza',['fit','zoomin','zoomout','theme']),('Aiuto',['help','tutorial','about'])]:
+                           ('Visualizza',['fit','zoomin','zoomout','grid','theme']),('Aiuto',['help','tutorial','about'])]:
             menu=self.menuBar().addMenu(label)
             for key in keys:
                 menu.addAction(self.actions[key])
@@ -303,6 +305,7 @@ class MainWindow(QMainWindow):
             toolbar.addAction(self.actions[key])
         toolbar.addSeparator()
         toolbar.addAction(self.actions['validate'])
+        toolbar.addAction(self.actions['grid'])
         spacer=QWidget()
         from PySide6.QtWidgets import QSizePolicy
         spacer.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Preferred)
@@ -337,6 +340,11 @@ class MainWindow(QMainWindow):
     def toggle_theme(self):
         self.dark=not self.dark
         self.apply_theme()
+
+    def toggle_grid(self):
+        self.scene.show_grid = self.actions['grid'].isChecked()
+        self.settings.setValue("showGrid", self.scene.show_grid)
+        self.scene.update()
 
     def toggle_snap(self):
         self.scene.snap=self.actions['snap'].isChecked()
@@ -396,6 +404,7 @@ class MainWindow(QMainWindow):
                 if node.attribute_card: info.append(f'Cardinalità ({node.attribute_card})')
                 if node.unique: info.append('Valori univoci')
                 if node.derived: info.append('Derivato · escluso dal DDL')
+                if node.kind == 'attribute': info += ['', 'Trascina il nome attorno al pallino.']
             elif node.kind in ('entity','relation'):
                 info.append(f'{len(self.document.attributes(node.id))} attributi')
             elif node.kind=='isa':

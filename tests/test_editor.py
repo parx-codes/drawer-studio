@@ -271,4 +271,4 @@ def test_long_primary_key_name_has_room_for_full_bold_text(app):
     font.setUnderline(True)
     width = QFontMetricsF(font).horizontalAdvance(key.name)
     # The attribute label begins 14 scene units to the right of its circle.
-    assert item.boundingRect().right() >= width + 14
+    assert item.attribute_name.mapRectToParent(item.attribute_name.boundingRect()).right() >= width + 14

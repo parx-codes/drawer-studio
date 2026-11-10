@@ -10,9 +10,9 @@ from copy import deepcopy
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFontDatabase
+from PySide6.QtGui import QColor, QFontDatabase
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
+    QApplication, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox,
     QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QTextBrowser,
     QVBoxLayout, QWidget,
@@ -88,6 +88,35 @@ def edit_node(parent: QWidget | None, node: Node, doc: Document | None = None) -
     name.setObjectName("nodeName")
     name.setPlaceholderText("Un nome descrittivo")
     form.addRow("Testo" if node.kind == "text" else "Nome", rich_editor or name)
+    if rich_editor:
+        transparent = QCheckBox("Sfondo trasparente")
+        transparent.setObjectName("noteTransparent")
+        transparent.setChecked(node.note_transparent)
+        background = node.note_background
+        color_button = QPushButton(background or "Colore predefinito")
+        color_button.setObjectName("noteBackground")
+        reset_color = QPushButton("Ripristina colore predefinito")
+        color_controls = QHBoxLayout()
+        color_controls.addWidget(color_button)
+        color_controls.addWidget(reset_color)
+
+        def set_background(value):
+            nonlocal background
+            background = value
+            color_button.setText(value or "Colore predefinito")
+
+        def choose_background():
+            chosen = QColorDialog.getColor(QColor(background or "#fff9e7"), dialog, "Sfondo della nota")
+            if chosen.isValid():
+                set_background(chosen.name())
+
+        color_button.clicked.connect(choose_background)
+        reset_color.clicked.connect(lambda: set_background(None))
+        for button in (color_button, reset_color):
+            button.setEnabled(not transparent.isChecked())
+            transparent.toggled.connect(button.setDisabled)
+        form.addRow("Sfondo", transparent)
+        form.addRow("Colore", color_controls)
     owner = None
     if doc is not None and node.kind in ("attribute", "multivalue", "isa"):
         owner = QComboBox()
@@ -240,6 +269,8 @@ def edit_node(parent: QWidget | None, node: Node, doc: Document | None = None) -
         if rich_editor:
             try:
                 result.text_html = rich_editor.get_html()
+                result.note_transparent = transparent.isChecked()
+                result.note_background = background
             except ValueError as error:
                 QMessageBox.warning(dialog, "Nota troppo complessa", str(error))
                 return
@@ -520,7 +551,7 @@ class HelpDialog(QDialog):
         <h2>Muoversi e modificare</h2>
         <ul>
           <li>Fai clic con il <b>sinistro</b> per selezionare un elemento o
-          trascina per selezionare un'area. Trascina direttamente un attributo per spostarlo. Tieni premuto <b>Ctrl</b> per estendere la selezione.</li>
+          trascina per selezionare un'area. Trascina un attributo o una nota per spostarli. Tieni premuto <b>Ctrl</b> per estendere la selezione.</li>
           <li>Trascina con il <b>destro</b> per spostare la vista. Usa <b>Maiusc+sinistro</b>
           per spostare le figure e trascina un angolo di una figura selezionata per ridimensionarla.</li>
           <li><b>Doppio clic sinistro</b> apre le proprietà; <b>Maiusc+destro</b>
@@ -535,7 +566,10 @@ class HelpDialog(QDialog):
           <b>Ctrl+Y</b> ripristina una modifica annullata.</li>
           <li><b>Esc</b> interrompe lo strumento in uso e torna alla selezione.</li>
         </ul>
+        <p>Usa <b>Griglia</b> nella barra in alto per mostrare o nascondere le linee
+        di riferimento. Le linee non compaiono nelle esportazioni.</p>
         <h2>Collegamenti sul foglio</h2>
+        <p>Trascina il nome di un attributo attorno al pallino per riposizionarlo.</p>
         <p>Passa il cursore su un oggetto e trascina una delle freccette che
         compaiono per collegarlo a un altro oggetto. Trascina direttamente una
         cardinalità, un ruolo o una sigla ISA per spostarla.

@@ -204,3 +204,24 @@ def test_attribute_cardinality_is_opt_in(app, monkeypatch):
     monkeypatch.setattr(QDialog, "exec", accept)
     assert edit_node(None, node).attribute_card == "1,N"
     assert node.attribute_card is None
+
+
+def test_note_background_picker_preserves_color_when_transparent(app, monkeypatch):
+    from PySide6.QtGui import QColor
+    from PySide6.QtWidgets import QColorDialog, QPushButton
+
+    node = Node(kind="text", name="Nota")
+    monkeypatch.setattr(QColorDialog, "getColor", lambda *args: QColor("#2d7ab0"))
+
+    def accept(dialog):
+        color = dialog.findChild(QPushButton, "noteBackground")
+        color.click()
+        assert color.text() == "#2d7ab0"
+        dialog.findChild(QCheckBox, "noteTransparent").setChecked(True)
+        assert not color.isEnabled()
+        return _accept(dialog)
+
+    monkeypatch.setattr(QDialog, "exec", accept)
+    result = edit_node(None, node)
+    assert result.note_transparent and result.note_background == "#2d7ab0"
+    assert not node.note_transparent and node.note_background is None

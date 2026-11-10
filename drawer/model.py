@@ -52,6 +52,9 @@ class Node:
     label_offsets: dict[str, list[float]] = field(default_factory=dict)
     attribute_card: str | None = None
     parent_anchor_angle: float | None = None
+    attribute_name_angle: float | None = None
+    note_background: str | None = None
+    note_transparent: bool = False
 
 
 @dataclass
@@ -86,9 +89,11 @@ class Document:
             data = asdict(item)
             if data["label_offsets"] == {}:
                 del data["label_offsets"]
-            for key in ("attribute_card", "parent_anchor_angle"):
+            for key in ("attribute_card", "parent_anchor_angle", "attribute_name_angle", "note_background"):
                 if data.get(key) is None:
                     data.pop(key, None)
+            if not data.get("note_transparent"):
+                data.pop("note_transparent", None)
             return data
 
         return {"format": "drawer-desktop", "schema_version": SCHEMA_VERSION,
@@ -269,6 +274,16 @@ def _check_node(node: Node) -> None:
     if angle is not None and (node.kind not in ("attribute", "multivalue")
                               or type(angle) not in (int, float) or not -math.pi <= angle <= math.pi):
         raise ValueError("Punto di attacco dell’attributo non valido.")
+    name_angle = node.attribute_name_angle
+    if name_angle is not None and (node.kind != "attribute" or type(name_angle) not in (int, float)
+                                   or not -math.pi <= name_angle <= math.pi):
+        raise ValueError("Posizione del nome dell’attributo non valida.")
+    color = node.note_background
+    if color is not None and (node.kind != "text" or not isinstance(color, str)
+                              or not re.fullmatch(r"#[0-9a-fA-F]{6}", color)):
+        raise ValueError("Colore dello sfondo della nota non valido.")
+    if type(node.note_transparent) is not bool or (node.note_transparent and node.kind != "text"):
+        raise ValueError("Trasparenza della nota non valida.")
     _check_geometry(node.parent_port, node.child_port, node.connection_points)
     _check_label_offsets(node.label_offsets, {"isa"} if node.kind == "isa" else
                          {"attribute"} if node.kind == "attribute" else set())

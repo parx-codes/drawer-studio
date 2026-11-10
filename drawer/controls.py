@@ -1,8 +1,9 @@
 """Controlli del foglio: porte di collegamento e maniglie dei percorsi."""
+import math
 from weakref import ref
 
 from PySide6.QtCore import Qt, QPointF, QRectF
-from PySide6.QtGui import QColor, QPen, QPolygonF
+from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPen, QPolygonF
 from PySide6.QtWidgets import QGraphicsObject, QGraphicsSimpleTextItem
 
 from .geometry import NORMALS, nearest_port, shift_corner, serialized
@@ -217,6 +218,72 @@ class ResizeHandle(QGraphicsObject):
         self._dragging = False
         self._resize(self._rect)
         self._edges = ()
+
+
+class AttributeName(QGraphicsSimpleTextItem):
+    """Nome trascinabile, indipendente dalla posizione del pallino."""
+    interactive_handle = True
+
+    def __init__(self, node_item):
+        super().__init__(node_item.node.name, node_item)
+        font = QFont('Sans Serif', 10)
+        font.setBold(node_item.node.is_pk)
+        font.setUnderline(node_item.node.is_pk)
+        self.setFont(font)
+        self.setAcceptedMouseButtons(Qt.LeftButton)
+        self.setCursor(Qt.SizeAllCursor)
+        self.setToolTip("Trascina il nome attorno all’attributo")
+        self._dragging = False
+        self.update_position()
+
+    def update_position(self):
+        angle = self.parentItem().node.attribute_name_angle or 0
+        direction = QPointF(math.cos(angle), math.sin(angle))
+        bounds = self.boundingRect()
+        # Proietta l'ingombro del nome sulla direzione radiale.
+        extent = (abs(direction.x()) * bounds.width() + abs(direction.y()) * bounds.height()) / 2
+        self.setPos(direction * (14 + extent) - bounds.center())
+
+    def paint(self, painter, option, widget=None):
+        painter.setPen(QColor('#dce8ee' if self.scene().dark else '#243b49'))
+        painter.setFont(self.font())
+        painter.drawText(QPointF(0, QFontMetricsF(self.font()).ascent()), self.text())
+
+    def mousePressEvent(self, event):
+        scene = self.scene()
+        node_item = self.parentItem()
+        if not node_item.isSelected():
+            scene.clearSelection()
+            node_item.setSelected(True)
+        self._dragging = True
+        self._previous_angle = node_item.node.attribute_name_angle
+        self._origin = event.scenePos()
+        scene.active_handle = self
+        event.accept()
+
+    def mouseMoveEvent(self, event):
+        if self._dragging:
+            node_item = self.parentItem()
+            if (event.scenePos() - self._origin).manhattanLength() < 1:
+                node_item.node.attribute_name_angle = self._previous_angle
+            else:
+                direction = node_item.mapFromScene(event.scenePos())
+                if not direction.isNull():
+                    node_item.node.attribute_name_angle = math.atan2(direction.y(), direction.x())
+            self.update_position()
+        event.accept()
+
+    def mouseReleaseEvent(self, event):
+        if self._dragging:
+            self._dragging = False
+            self.scene().active_handle = None
+            self.scene().changed_by_user.emit()
+        event.accept()
+
+    def cancel(self):
+        self._dragging = False
+        self.parentItem().node.attribute_name_angle = self._previous_angle
+        self.update_position()
 
 
 class EdgeLabel(QGraphicsSimpleTextItem):

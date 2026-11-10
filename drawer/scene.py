@@ -1,15 +1,15 @@
 """Scena Qt: forme ER, collegamenti, selezione e transazioni di trascinamento."""
 import math
 
-from PySide6.QtCore import Qt, Signal, QPointF, QRectF, QTimer, QRect, QEvent
-from PySide6.QtGui import QColor, QPen, QBrush, QPainter, QPainterPath, QFont, QPolygonF, QFontMetricsF, QTransform
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsObject, QGraphicsPathItem, QGraphicsItem, QGraphicsSimpleTextItem, QGraphicsView, QMenu, QApplication, QRubberBand
+from PySide6.QtCore import Qt, Signal, QPointF, QLineF, QRectF, QTimer, QRect, QEvent
+from PySide6.QtGui import QColor, QPen, QBrush, QPainter, QPainterPath, QFont, QPolygonF, QTransform
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsObject, QGraphicsPathItem, QGraphicsItem, QGraphicsView, QMenu, QApplication, QRubberBand
 
 from .routing import route
 from .richtext import create_note_document
 from .geometry import port_point, nearest_port, NORMALS, adapt_manual, serialized
 from .model import PORTS
-from .controls import PortArrow, ResizeHandle
+from .controls import AttributeName, PortArrow, ResizeHandle
 from .connections import EdgeItem
 
 GRID = 20
@@ -38,6 +38,7 @@ class NodeItem(QGraphicsObject):
         if node.kind in ('entity', 'relation', 'multivalue', 'text'):
             self.resize_handles = [ResizeHandle(self, left, top)
                                    for top in (True, False) for left in (True, False)]
+        self.attribute_name = AttributeName(self) if node.kind == 'attribute' else None
         self.position_controls()
 
     @property
@@ -80,12 +81,6 @@ class NodeItem(QGraphicsObject):
 
     def boundingRect(self):
         n = self.node
-        if n.kind == 'attribute':
-            font = QFont('Sans Serif', 10)
-            font.setBold(n.is_pk)
-            font.setUnderline(n.is_pk)
-            width = QFontMetricsF(font).horizontalAdvance(n.name) + 38
-            return QRectF(-11, -15, max(60, width), 32)
         if n.kind == 'isa':
             center = self.body_rect().center()
             return QRectF(center.x()-12,center.y()-12,24,24)
@@ -97,7 +92,9 @@ class NodeItem(QGraphicsObject):
         if kind == 'relation':
             p.addPolygon(QPolygonF([QPointF(r.center().x(), 0), QPointF(r.right(), r.center().y()), QPointF(r.center().x(), r.bottom()), QPointF(0, r.center().y())]))
             p.closeSubpath()
-        elif kind in ('attribute', 'text'):
+        elif kind == 'attribute':
+            p.addEllipse(r.adjusted(-4, -4, 4, 4))
+        elif kind == 'text':
             p.addRect(self.boundingRect())
         elif kind == 'multivalue':
             p.addEllipse(r)
@@ -134,8 +131,6 @@ class NodeItem(QGraphicsObject):
         elif n.kind == 'attribute':
             painter.setBrush(ink if n.is_pk else fill)
             painter.drawEllipse(r)
-            painter.setPen(ink)
-            painter.drawText(QRectF(14, -12, self.boundingRect().width()-24, 26), Qt.AlignLeft | Qt.AlignVCenter, n.name)
             return
         elif n.kind == 'isa':
             painter.setBrush(accent if self.isSelected() else ink)
@@ -146,9 +141,19 @@ class NodeItem(QGraphicsObject):
                 painter.drawEllipse(r.center(),10,10)
             return
         elif n.kind == 'text':
-            painter.setBrush(QColor('#2b3433' if dark else '#fff9e7'))
-            painter.setPen(QPen(QColor('#b6a163'), 1, Qt.DashLine))
-            painter.drawRoundedRect(r, 5, 5)
+            if n.note_transparent:
+                if self.isSelected() and not self.editor.exporting:
+                    painter.setBrush(Qt.NoBrush)
+                    painter.setPen(QPen(accent, 1, Qt.DashLine))
+                    painter.drawRoundedRect(r, 5, 5)
+            else:
+                background = QColor(n.note_background or ('#2b3433' if dark else '#fff9e7'))
+                if n.note_background:
+                    brightness = .299 * background.red() + .587 * background.green() + .114 * background.blue()
+                    ink = QColor('#ffffff' if brightness < 128 else '#243b49')
+                painter.setBrush(background)
+                painter.setPen(QPen(QColor('#b6a163'), 1, Qt.DashLine))
+                painter.drawRoundedRect(r, 5, 5)
             area = r.adjusted(12,8,-12,-8)
             if area.isEmpty():
                 return
@@ -233,6 +238,7 @@ class DiagramScene(QGraphicsScene):
         self.node_items, self.edge_items = {}, []
         self.dark, self.snap, self.loading, self.exporting = False, True, False, False
         self.transparent_background = False
+        self.show_grid = False
         self.hovered_port_node = None
         self.following_parent = 0
         self.mode, self.connect_source = 'select', None
@@ -315,15 +321,19 @@ class DiagramScene(QGraphicsScene):
         if self.transparent_background:
             return
         painter.fillRect(rect, QColor('#15222d' if self.dark else '#f7f9fa'))
-        if self.exporting:
+        if self.exporting or not self.show_grid:
             return
-        painter.setPen(QPen(QColor('#30434e' if self.dark else '#d9e1e5'), 1))
+        painter.setPen(QPen(QColor('#30434e' if self.dark else '#d9e1e5'), 0))
         step = GRID
         if self.views() and self.views()[0].transform().m11() < .45:
             step *= 4
-        left, top = math.floor(rect.left()/step)*step, math.floor(rect.top()/step)*step
-        points = QPolygonF([QPointF(x,y) for x in range(left, int(rect.right())+step, step) for y in range(top, int(rect.bottom())+step, step)])
-        painter.drawPoints(points)
+        left = math.ceil(rect.left() / step) * step
+        top = math.ceil(rect.top() / step) * step
+        vertical = [QLineF(x, rect.top(), x, rect.bottom())
+                    for x in range(left, math.floor(rect.right()) + 1, step)]
+        horizontal = [QLineF(rect.left(), y, rect.right(), y)
+                      for y in range(top, math.floor(rect.bottom()) + 1, step)]
+        painter.drawLines(vertical + horizontal)
 
     def mousePressEvent(self, event):
         if event.button()==Qt.LeftButton and any(getattr(item,'interactive_handle',False)
@@ -411,7 +421,9 @@ class DiagramScene(QGraphicsScene):
     def show_context_menu(self, position, screen_position):
         """Menu esplicito (Maiusc+destro o tasto Menu), distinto dalla selezione."""
         item = next((candidate for candidate in self.items(position)
-                     if getattr(candidate, 'object_id', None)), None)
+                     if isinstance(candidate, AttributeName) or getattr(candidate, 'object_id', None)), None)
+        if isinstance(item, AttributeName):
+            item = item.parentItem()
         if not getattr(item,'object_id',None):
             return
         object_id = item.object_id
@@ -478,10 +490,12 @@ class DiagramView(QGraphicsView):
         self.zoom_changed.emit(round(self.transform().m11()*100))
 
     def _selectable_at(self, position):
-        # Le etichette degli archi non sono selezionabili: cercare anche sotto
-        # di esse permette di raggiungere il nodo o il collegamento sottostante.
-        return next((item for item in self.items(position)
-                     if item.flags() & QGraphicsItem.ItemIsSelectable), None)
+        for item in self.items(position):
+            if isinstance(item, AttributeName):
+                return item.parentItem()
+            if item.flags() & QGraphicsItem.ItemIsSelectable:
+                return item
+        return None
 
     def _normal_cursor(self):
         self.setCursor(Qt.OpenHandCursor if self._space else
@@ -528,8 +542,10 @@ class DiagramView(QGraphicsView):
         path = QPainterPath()
         path.addPolygon(self.mapToScene(rectangle))
         path.closeSubpath()
-        selected = {item for item in self.scene().items(path, Qt.IntersectsItemShape)
-                    if item.flags() & QGraphicsItem.ItemIsSelectable}
+        candidates = self.scene().items(path, Qt.IntersectsItemShape)
+        selected = {item.parentItem() if isinstance(item, AttributeName) else item
+                    for item in candidates
+                    if isinstance(item, AttributeName) or item.flags() & QGraphicsItem.ItemIsSelectable}
         if self._selection_additive:
             selected.update(item for identifier in self._selection_baseline
                             if (item := self.scene().find_item(identifier)) is not None)
@@ -571,14 +587,16 @@ class DiagramView(QGraphicsView):
             return
         if button == Qt.LeftButton and self.scene().mode == 'select':
             point = event.position().toPoint()
-            if any(getattr(item,'interactive_handle',False) for item in self.items(point)):
+            if any(getattr(item, 'interactive_handle', False)
+                   and not (isinstance(item, AttributeName) and modifiers & Qt.ControlModifier)
+                   for item in self.items(point)):
                 super().mousePressEvent(event)
                 return
             item = self._selectable_at(point)
-            move_attribute = (isinstance(item, NodeItem)
-                              and item.node.kind in ('attribute', 'multivalue')
+            move_directly = (isinstance(item, NodeItem)
+                              and item.node.kind in ('attribute', 'multivalue', 'text')
                               and modifiers == Qt.NoModifier)
-            if isinstance(item, NodeItem) and (move_attribute or modifiers & Qt.ShiftModifier):
+            if isinstance(item, NodeItem) and (move_directly or modifiers & Qt.ShiftModifier):
                 self._left_item_drag = True
                 super().mousePressEvent(event)
                 return

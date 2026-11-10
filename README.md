@@ -17,11 +17,13 @@ Il progetto è stato sviluppato in **vibe coding insieme all’intelligenza arti
 
 - **Sinistro** per selezionare un oggetto o trascinare un riquadro. **Destro** per spostare la vista.
 - **Sinistro** su un attributo per trascinarlo. **Maiusc+sinistro** per spostare le altre figure. Seleziona un arco per trascinare attacchi, tratti ed etichette.
+- Trascina il nome di un attributo attorno al suo pallino. Per spostare il pallino o una nota, trascina direttamente l’elemento.
+- Usa **Griglia** nella barra in alto per mostrare le linee di riferimento. Restano fuori dalle esportazioni. Nelle proprietà delle note puoi scegliere uno sfondo trasparente o un colore personalizzato.
 - Gli attributi si attaccano lungo tutto il contorno del proprietario. Nelle proprietà puoi attivare la cardinalità e scegliere tra (0,1), (1,1), (0,N) e (1,N).
 
 ## Avvio su Linux
 
-Il pacchetto portabile della versione **1.0.5** per Linux x86_64 è stato verificato su Zorin OS 18.1, basato su Ubuntu 24.04. Estrai tutto l’archivio e avvia **DrawER Studio** dalla cartella estratta, lasciando accanto all’eseguibile la sottocartella `_internal`. Il pacchetto include il runtime.
+Il pacchetto portabile della versione **1.0.6** per Linux x86_64 è stato verificato su Zorin OS 18.1, basato su Ubuntu 24.04. Estrai tutto l’archivio e avvia **DrawER Studio** dalla cartella estratta, lasciando accanto all’eseguibile la sottocartella `_internal`. Il pacchetto include il runtime.
 
 ## Avvio dai sorgenti
 
@@ -52,7 +54,7 @@ python -m pytest -q
 python tools/build.py
 ```
 
-La build usa PyInstaller e genera il pacchetto in `dist/DrawER Studio/`. Su Linux puoi installarlo con `sh tools/install_linux.sh "dist/DrawER Studio" 1.0.5` e aprirlo dal collegamento sulla Scrivania. I sorgenti di ogni rilascio sono pubblicati su `main`.
+La build usa PyInstaller e genera il pacchetto in `dist/DrawER Studio/`. Su Linux puoi installarlo con `sh tools/install_linux.sh "dist/DrawER Studio" 1.0.6` e aprirlo dal collegamento sulla Scrivania. I sorgenti di ogni rilascio sono pubblicati su `main`.
 
 ## Esportazione SQL
 

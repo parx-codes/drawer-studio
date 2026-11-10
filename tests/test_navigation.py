@@ -237,3 +237,14 @@ def test_focus_loss_cancels_marquee_and_preserves_previous_selection(editor):
     assert editor.scene.selected_ids() == [first.id]
     assert editor.view._selection_origin is None
     assert not editor.view._rubber_band.isVisible()
+
+
+def test_note_moves_with_plain_left_drag(editor):
+    note = Node(kind='text', name='Nota', x=240, y=-90, note_transparent=True)
+    editor.document.nodes.append(note)
+    editor.commit(rebuild=True)
+    editor.view.fit_diagram()
+    start = point(editor, len(editor.document.nodes) - 1)
+    drag(editor, Qt.LeftButton, start, start + QPoint(70, 42))
+    assert (note.x, note.y) != (240, -90)
+    assert editor.scene.selected_ids() == [note.id]

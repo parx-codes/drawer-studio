@@ -1,5 +1,12 @@
 # Novità di DrawER Studio
 
+## 1.0.6
+
+- Il nome dell’attributo si trascina attorno al pallino.
+- Il pulsante **Griglia** mostra o nasconde le linee di riferimento sul foglio.
+- Le note si spostano trascinandole con il sinistro e possono avere uno sfondo
+  trasparente o un colore personalizzato.
+
 ## 1.0.5
 
 - Attributi semplici e multivalori si spostano trascinandoli con il sinistro.

@@ -596,3 +596,48 @@ def test_tutorial_first_run_skip_replay_and_exercise_menu(editor, tmp_path):
     editor.learning.starter.click()
     assert [node.name for node in editor.document.nodes] == ['Studente', 'Corso']
     assert editor.path is None
+
+
+def test_attribute_name_orbits_independently_and_saves(editor, tmp_path):
+    owner = Node(name='Persona')
+    attribute = Node(kind='attribute', name='Telefono', parent_id=owner.id,
+                     x=220, y=140, attribute_card='1,N')
+    editor.replace_document(Document(nodes=[owner, attribute]))
+    item = editor.scene.node_items[attribute.id]
+    label = item.attribute_name
+    points = list(editor.scene.edge_items[0].points)
+    for delta, axis, sign in [(QPointF(-70, 0), 'x', -1), (QPointF(0, -65), 'y', -1),
+                               (QPointF(0, 65), 'y', 1), (QPointF(70, 0), 'x', 1)]:
+        start = label.sceneBoundingRect().center()
+        drag(editor, start, item.pos() + delta)
+        offset = label.sceneBoundingRect().center() - item.pos()
+        assert getattr(offset, axis)() * sign > 14
+    assert item.pos() == QPointF(220, 140)
+    assert editor.scene.edge_items[0].points == points
+    target = tmp_path / 'label.erdraw'
+    save_document(editor.document, target)
+    assert load_document(target).node(attribute.id).attribute_name_angle == attribute.attribute_name_angle
+    editor.undo()
+    assert editor.scene.node_items[attribute.id].attribute_name.sceneBoundingRect().center().y() > 154
+
+
+def test_grid_toggle_changes_preview_but_not_exports(editor, tmp_path):
+    editor.settings = QSettings(str(tmp_path / 'settings.ini'), QSettings.IniFormat)
+    action = editor.actions['grid']
+    action.setChecked(False)
+    editor.toggle_grid()
+    QApplication.processEvents()
+    plain = editor.view.viewport().grab().toImage()
+    before = {kind: tmp_path / f'before.{kind}' for kind in ('png', 'svg')}
+    for kind, path in before.items():
+        export_diagram(editor.scene, path, kind)
+    action.trigger()
+    QApplication.processEvents()
+    assert editor.view.viewport().grab().toImage() != plain
+    assert editor.settings.value('showGrid', type=bool)
+    assert not editor.dirty
+    for kind, path in before.items():
+        after = tmp_path / f'after.{kind}'
+        export_diagram(editor.scene, after, kind)
+        assert after.read_bytes() == path.read_bytes()
+    assert editor.scene.show_grid

@@ -150,3 +150,25 @@ def test_oversized_note_text_stays_inside_its_text_area(app,tmp_path):
                 colored+=1
                 assert area.contains(origin_x+x/2,origin_y+y/2)
     assert colored>30
+
+
+def test_note_background_and_transparency_render_and_persist(app, tmp_path):
+    item = note(x=50, y=50, note_background='#147b83')
+    doc = Document(nodes=[item])
+    scene = DiagramScene(doc)
+
+    def sample():
+        image = QImage(400, 200, QImage.Format_RGB32)
+        painter = QPainter(image)
+        rect = QRectF(0, 0, 400, 200)
+        scene.render(painter, rect, rect)
+        painter.end()
+        return image.pixelColor(65, 158), image.pixelColor(10, 10)
+
+    assert sample()[0] == QColor('#147b83')
+    item.note_transparent = True
+    assert sample()[0] == sample()[1]
+    path = tmp_path / 'note.erdraw'
+    save_document(doc, path)
+    restored = load_document(path).nodes[0]
+    assert restored.note_transparent and restored.note_background == '#147b83'
